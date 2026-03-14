@@ -1,3 +1,4 @@
+## Cai thu vien cho venv
 pip install pyefd scikit-image scipy tqdm opencv-python
 
 # image_search
