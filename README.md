@@ -1,0 +1,1 @@
+pip install pyefd scikit-image scipy tqdm opencv-python 
