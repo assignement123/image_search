@@ -39,4 +39,4 @@ target/
 
 .venv/
 __pycache__/
-debug_out
+debug_out/
