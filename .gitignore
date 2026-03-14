@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Ignore folder dữ liệu lớn
 Leaves/
 Leaves/*
@@ -23,3 +24,21 @@ data/
 *.log
 *.zip
 *.tar.gz
+=======
+# Docker & Database
+data/
+*.log
+
+# Java / Quarkus / Maven (Dự phòng cho EduGame AI hoặc project Java của bạn)
+target/
+.mvn/
+*.class
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+
+.venv/
+__pycache__/
+>>>>>>> origin/main

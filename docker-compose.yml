@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16 # Sử dụng image PostgreSQL 16 đã cài sẵn pgvector
+    container_name: leaf_vector_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: leaf_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # Mount dữ liệu để không bị mất khi xóa container
+      - leaf_db_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  leaf_db_data:
