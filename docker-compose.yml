@@ -12,7 +12,6 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      # Mount dữ liệu để không bị mất khi xóa container
       - leaf_db_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
