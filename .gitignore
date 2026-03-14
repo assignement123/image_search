@@ -1,5 +1,5 @@
 # Docker & Database
-leaf_db_data/
+data/
 *.log
 
 # Java / Quarkus / Maven (Dự phòng cho EduGame AI hoặc project Java của bạn)
@@ -11,3 +11,6 @@ target/
 .idea/
 .vscode/
 .DS_Store
+
+.venv/
+__pycache__/
