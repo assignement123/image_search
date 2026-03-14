@@ -156,97 +156,137 @@ def debug_preprocess(image_path: str, out_dir: str) -> None:
 # ════════════════════════════════════════════════════════════════════
 # BƯỚC 2A — EFD  (8 ảnh)
 # ════════════════════════════════════════════════════════════════════
-
 def debug_efd(contour: np.ndarray, out_dir: str) -> None:
     print("\n[BƯỚC 2A] EFD — Hình dạng biên lá")
     p = lambda n: os.path.join(out_dir, n)
+
     contour = np.asarray(contour, np.float64).reshape(-1, 2)
 
+    # ─────────────────────────────
     # 00 - Contour gốc
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot(contour[:, 0], contour[:, 1], 'b-', lw=1.5)
-    ax.plot(contour[0, 0], contour[0, 1], 'ro', ms=8, label='Điểm bắt đầu (x nhỏ nhất)')
+    # ─────────────────────────────
+    fig, ax = plt.subplots(figsize=(5,5))
+    ax.plot(contour[:,0], contour[:,1], 'b-', lw=1.5)
+    ax.plot(contour[0,0], contour[0,1], 'ro', ms=8)
     ax.set_title(f"00 — Contour gốc ({len(contour)} điểm)", fontweight='bold')
-    ax.set_aspect('equal'); ax.invert_yaxis(); ax.legend(); ax.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(p("step2a_00_contour_raw.png"), dpi=110, bbox_inches='tight')
-    plt.close(); print(f"    → step2a_00_contour_raw.png")
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.grid(alpha=0.3)
 
-    # 01 - Sau resample
+    plt.tight_layout()
+    plt.savefig(p("step2a_00_contour_raw.png"), dpi=110)
+    plt.close()
+
+    # ─────────────────────────────
+    # 01 - Resample contour
+    # ─────────────────────────────
     rs = _resample_contour(contour, N_RESAMPLE)
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot(rs[:, 0], rs[:, 1], 'g-', lw=1.5, label='Contour resample')
-    ax.scatter(rs[::30, 0], rs[::30, 1], c='red', s=20, zorder=5,
-               label='Mỗi 30 điểm')
-    ax.set_title(f"01 — Sau resample ({N_RESAMPLE} điểm đều theo arc-length)",
-                 fontweight='bold')
-    ax.set_aspect('equal'); ax.invert_yaxis(); ax.legend(); ax.grid(alpha=0.3)
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    ax.plot(rs[:,0], rs[:,1], 'g-', lw=1.5)
+    ax.scatter(rs[::30,0], rs[::30,1], c='red', s=20)
+    ax.set_title(f"01 — Resample ({N_RESAMPLE} điểm)", fontweight='bold')
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.grid(alpha=0.3)
+
     plt.tight_layout()
-    plt.savefig(p("step2a_01_resampled.png"), dpi=110, bbox_inches='tight')
-    plt.close(); print(f"    → step2a_01_resampled.png")
+    plt.savefig(p("step2a_01_resampled.png"), dpi=110)
+    plt.close()
 
+    # ─────────────────────────────
     # Tính EFD
-    coeffs = elliptic_fourier_descriptors(rs, order=HARMONICS + 2, normalize=False)
-    a1, b1, c1, d1 = coeffs[1]
-    amp1 = np.sqrt(a1**2 + b1**2 + c1**2 + d1**2)
-    if amp1 > 1e-10:
-        coeffs /= amp1
+    # ─────────────────────────────
+    coeffs = elliptic_fourier_descriptors(
+        rs,
+        order=HARMONICS,
+        normalize=False
+    )
 
-    cx = rs[:, 0]; cy = rs[:, 1]
-    t  = np.linspace(0, 1, N_RESAMPLE, endpoint=False)
+    # centroid chuẩn
+    A0 = rs[:,0].mean()
+    C0 = rs[:,1].mean()
 
+    t = np.linspace(0,1,N_RESAMPLE)
+
+    # ─────────────────────────────
+    # Hàm reconstruct chuẩn
+    # ─────────────────────────────
     def reconstruct(n_max):
-        x = np.zeros_like(t); y = np.zeros_like(t)
-        for n in range(1, min(n_max + 1, len(coeffs))):
+
+        x = np.full_like(t, A0)
+        y = np.full_like(t, C0)
+
+        for n in range(n_max):
+
             an, bn, cn, dn = coeffs[n]
-            x += an * np.cos(2*n*np.pi*t) + bn * np.sin(2*n*np.pi*t)
-            y += cn * np.cos(2*n*np.pi*t) + dn * np.sin(2*n*np.pi*t)
+
+            k = n + 1   # harmonic index thực
+
+            x += an*np.cos(2*np.pi*k*t) + bn*np.sin(2*np.pi*k*t)
+            y += cn*np.cos(2*np.pi*k*t) + dn*np.sin(2*np.pi*k*t)
+
         return x, y
 
-    # 02-06: Tái tạo ở 5 bậc khác nhau
-    for i, n_h in enumerate([1, 3, 6, 12, HARMONICS]):
-        n_safe = min(n_h, len(coeffs) - 1)
-        x, y   = reconstruct(n_safe)
+    cx = rs[:,0]
+    cy = rs[:,1]
 
-        # Scale tái tạo về không gian pixel để dễ so sánh
-        sx  = (cx.max()-cx.min()) / (x.max()-x.min()+1e-9)
-        sy_ = (cy.max()-cy.min()) / (y.max()-y.min()+1e-9)
-        xsc = (x - (x.max()+x.min())/2) * sx  + (cx.max()+cx.min())/2
-        ysc = (y - (y.max()+y.min())/2) * sy_ + (cy.max()+cy.min())/2
+    # ─────────────────────────────
+    # Tái tạo các bậc
+    # ─────────────────────────────
+    for i, n_h in enumerate([1,3,6,12,HARMONICS]):
 
-        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-        axes[0].plot(x, y, 'b-', lw=2)
-        axes[0].set_title(f'Không gian EFD\n(bậc 1 → {n_safe})', fontweight='bold')
-        axes[0].set_aspect('equal'); axes[0].invert_yaxis(); axes[0].grid(alpha=0.3)
+        x,y = reconstruct(n_h)
 
-        axes[1].plot(cx, cy, 'g--', lw=1.5, alpha=0.6, label='Contour gốc (px)')
-        axes[1].plot(xsc, ysc, 'b-', lw=2, label=f'Tái tạo n={n_safe} (scaled)')
-        axes[1].set_title('So sánh không gian pixel', fontweight='bold')
-        axes[1].set_aspect('equal'); axes[1].invert_yaxis()
-        axes[1].legend(); axes[1].grid(alpha=0.3)
+        fig, axes = plt.subplots(1,2,figsize=(12,4))
 
-        fname = f"step2a_{i+2:02d}_reconstruct_n{n_safe}.png"
-        plt.suptitle(f"0{i+2} — Tái tạo EFD bậc {n_safe}", fontweight='bold')
+        # Không gian Fourier
+        axes[0].plot(x,y,'b-',lw=2)
+        axes[0].set_title(f'EFD space (n={n_h})',fontweight='bold')
+        axes[0].set_aspect('equal')
+        axes[0].invert_yaxis()
+        axes[0].grid(alpha=0.3)
+
+        # Pixel space
+        axes[1].plot(cx,cy,'g--',lw=1.5,label='Contour gốc')
+        axes[1].plot(x,y,'b-',lw=2,label=f'Reconstruct n={n_h}')
+        axes[1].set_title('So sánh pixel space',fontweight='bold')
+        axes[1].set_aspect('equal')
+        axes[1].invert_yaxis()
+        axes[1].legend()
+        axes[1].grid(alpha=0.3)
+
+        fname=f"step2a_{i+2:02d}_reconstruct_n{n_h}.png"
+
+        plt.suptitle(f"Tái tạo EFD bậc {n_h}",fontweight='bold')
         plt.tight_layout()
-        plt.savefig(p(fname), dpi=110, bbox_inches='tight')
-        plt.close(); print(f"    → {fname}")
+        plt.savefig(p(fname),dpi=110)
+        plt.close()
 
-    # 07 - Biên độ từng bậc
-    amps = [np.sqrt(sum(c**2 for c in coeffs[n])) for n in range(1, len(coeffs))]
-    bar_clr = ['#e74c3c' if i < 3 else ('#e67e22' if i < 8 else '#3498db')
-               for i in range(len(amps))]
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.bar(range(1, len(amps)+1), amps, color=bar_clr, edgecolor='white', alpha=0.85)
-    ax.set_xlabel('Bậc hài (n)'); ax.set_ylabel('Biên độ  √(a²+b²+c²+d²)')
-    ax.set_title('07 — Biên độ EFD theo bậc\n'
-                 'Đỏ: hình dạng chính | Cam: răng cưa/khía | Xanh: chi tiết nhỏ',
-                 fontweight='bold')
-    ax.grid(axis='y', alpha=0.3)
+        print(f"    → {fname}")
+
+    # ─────────────────────────────
+    # Amplitude plot
+    # ─────────────────────────────
+    amps = [
+        np.sqrt(sum(c**2 for c in coeffs[n]))
+        for n in range(1,len(coeffs))
+    ]
+
+    fig, ax = plt.subplots(figsize=(10,4))
+    ax.bar(range(1,len(amps)+1), amps)
+
+    ax.set_xlabel("Harmonic n")
+    ax.set_ylabel("Amplitude")
+    ax.set_title("07 — Biên độ EFD theo bậc",fontweight='bold')
+
+    ax.grid(axis='y',alpha=0.3)
+
     plt.tight_layout()
-    plt.savefig(p("step2a_07_amplitudes.png"), dpi=110, bbox_inches='tight')
-    plt.close(); print(f"    → step2a_07_amplitudes.png")
-    print(f"  → Tổng: 8 ảnh (step2a_00 ÷ step2a_07)")
+    plt.savefig(p("step2a_07_amplitudes.png"),dpi=110)
+    plt.close()
 
+    print("    → step2a_07_amplitudes.png")
 
 # ════════════════════════════════════════════════════════════════════
 # BƯỚC 2B — GLCM  (6 ảnh)

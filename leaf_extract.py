@@ -43,7 +43,18 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 from tqdm import tqdm
+import psycopg2
 
+
+def connect_db():
+    conn = psycopg2.connect(
+        host="localhost",
+        port=5433,      # port docker của bạn
+        dbname="leaf_db",
+        user="admin",
+        password="admin"
+    )
+    return conn
 
 # ════════════════════════════════════════════════════════════════════
 # THAM SỐ TRÍCH XUẤT
@@ -337,8 +348,10 @@ def init_db(db_path: str) -> sqlite3.Connection:
     return conn
 
 
-def _get_done_filenames(conn: sqlite3.Connection) -> set:
-    rows = conn.execute("SELECT filename FROM leaves").fetchall()
+def _get_done_filenames(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT filename FROM leaf_collection")
+    rows = cur.fetchall()
     return {r[0] for r in rows}
 
 
@@ -358,7 +371,31 @@ def insert_entry(conn: sqlite3.Connection,
         datetime.now().isoformat(timespec="seconds"),
     ))
 
+def insert_pg(conn, filename, path, feats):
 
+    cur = conn.cursor()
+
+    cur.execute("""
+        INSERT INTO leaf_collection
+        (filename, image_path, efd, glcm, color, vein)
+        VALUES (%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (filename) DO UPDATE SET
+            image_path = EXCLUDED.image_path,
+            efd = EXCLUDED.efd,
+            glcm = EXCLUDED.glcm,
+            color = EXCLUDED.color,
+            vein = EXCLUDED.vein
+    """,
+    (
+        filename,
+        path,
+        feats["efd"].tolist(),
+        feats["glcm"].tolist(),
+        feats["color"].tolist(),
+        feats["vein"].tolist()
+    ))
+
+    conn.commit()
 def load_all_features(conn: sqlite3.Connection) -> list:
     """
     Load toàn bộ database vào RAM — dùng cho query / retrieval.
@@ -381,18 +418,22 @@ def load_all_features(conn: sqlite3.Connection) -> list:
     return entries
 
 
-def db_stats(conn: sqlite3.Connection) -> None:
-    """In thống kê database ra terminal."""
-    total = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
-    first = conn.execute(
-        "SELECT filename FROM leaves ORDER BY id LIMIT 1").fetchone()
-    last  = conn.execute(
-        "SELECT filename FROM leaves ORDER BY id DESC LIMIT 1").fetchone()
+def db_stats(conn):
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM leaf_collection")
+    total = cur.fetchone()[0]
+
+    cur.execute("SELECT filename FROM leaf_collection ORDER BY id LIMIT 1")
+    first = cur.fetchone()
+
+    cur.execute("SELECT filename FROM leaf_collection ORDER BY id DESC LIMIT 1")
+    last = cur.fetchone()
+
     print(f"\n  Database  : {total} ảnh")
     if first and last:
         print(f"  File đầu  : {first[0]}")
         print(f"  File cuối : {last[0]}")
-    print()
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -434,7 +475,7 @@ def build_database(data_dir: str,
     print(f"  Output DB : {os.path.abspath(db_path)}")
     print(f"{'═'*62}\n")
 
-    conn       = init_db(db_path)
+    conn = connect_db()
     done_names = _get_done_filenames(conn)
     if done_names and not rebuild:
         print(f"  → Resume: đã có {len(done_names)} ảnh, bỏ qua.\n")
@@ -454,7 +495,7 @@ def build_database(data_dir: str,
 
             try:
                 feats = extract_features(fpath)
-                insert_entry(conn, fname, str(fpath), feats)
+                insert_pg(conn, fname, str(fpath), feats)
                 added += 1
 
                 # Checkpoint mỗi 50 ảnh
@@ -474,7 +515,9 @@ def build_database(data_dir: str,
     print(f"  ✓ Đã extract    : {added:>6} ảnh mới")
     if skipped:
         print(f"  ○ Bỏ qua        : {skipped:>6} ảnh (đã có trong DB)")
-    total_db = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM leaf_collection")
+    total_db = cur.fetchone()[0]
     print(f"  ✓ Tổng trong DB : {total_db:>5} ảnh")
     if errors:
         print(f"  ✗ Lỗi           : {len(errors):>6} ảnh")
