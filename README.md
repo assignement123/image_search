@@ -1,9 +1,7 @@
 ## Cai thu vien cho venv
-pip install pyefd scikit-image scipy tqdm opencv-python
 
-# image_search
 
-# khoi tao moi truong
+# khoi tao container docker
 
 docker-compose up -d
 
@@ -17,7 +15,7 @@ python leaf_debug.py 1027.jpg
 
 # File leaf_extract.py de chay ca folder(vi du ten folder : leave), them data, day data anh da extract vao database
 
-python leaf_extract.py --data leaves
+python leaf_extract.py --data Leaves
 
 # Folder anh cho vao database la chua co cau truc, chi co dang 1 folder co 1 list anh
 

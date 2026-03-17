@@ -44,7 +44,7 @@ from pathlib import Path
 from datetime import datetime
 from tqdm import tqdm
 import psycopg2
-
+from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 
 def connect_db():
     conn = psycopg2.connect(
@@ -64,11 +64,11 @@ N_RESAMPLE  = 600
 GLCM_DIST   = [1, 3, 5, 7]
 GLCM_ANGLES = [0, np.pi/4, np.pi/2, 3*np.pi/4]
 GLCM_LEVELS = 32
-
+DIM_TEXTURE = 46
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
 
-DIM_EFD   = (HARMONICS - 1) * 4   # 76
-DIM_GLCM  = len(GLCM_DIST) * 5    # 20
+DIM_EFD   = (HARMONICS - 1) * 4   
+DIM_GLCM  = 46    
 DIM_COLOR = 9
 DIM_VEIN  = 9
 
@@ -195,33 +195,105 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
 
     # Bỏ bậc 0 (DC) và bậc 1 (dùng để normalize) → lấy bậc 2 → HARMONICS
     return coeffs[2:HARMONICS + 1, :].flatten().astype(np.float32)
+GLCM_LEVELS  = 64
+GLCM_DIST    = [1, 3, 5, 7]          # 4 distances → 20 chiều GLCM
+GLCM_ANGLES  = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+LBP_P, LBP_R = 24, 3                 # 26 chiều LBP
 
+# ── Hàm tạo mask từ ảnh xám đã preprocess ────────────────────────────────────
+def get_leaf_mask(gray_img: np.ndarray) -> np.ndarray:
+    """
+    Tạo mask vùng lá từ ảnh xám (nền đen = 0).
+    preprocess_leaf_image đã dùng canvas đen nên threshold đơn giản là đủ.
+    """
+    _, mask = cv2.threshold(gray_img, 5, 255, cv2.THRESH_BINARY)
+    # Morphology để lấp lỗ nhỏ bên trong lá
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    mask   = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    return mask
 
+# ── LBP ──────────────────────────────────────────────────────────────────────
+def extract_lbp(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """
+    Local Binary Pattern — cấu trúc vi mô bề mặt lá.
+    - Chỉ tính trên vùng mask (loại bỏ nền đen)
+    - Output: 26 chiều (P+2 bins, normalized)
+    """
+    lbp = local_binary_pattern(gray_img, LBP_P, LBP_R, method="uniform")
+
+    # Chỉ lấy pixel thuộc vùng lá
+    lbp_masked = lbp[mask > 0]
+
+    hist, _ = np.histogram(
+        lbp_masked,
+        bins=np.arange(0, LBP_P + 3),
+        range=(0, LBP_P + 2)
+    )
+    hist = hist.astype(np.float32)
+    hist /= (hist.sum() + 1e-7)
+    return hist  # 26 chiều
+
+# ── GLCM ─────────────────────────────────────────────────────────────────────
 def extract_glcm(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """
     Gray Level Co-occurrence Matrix — texture bề mặt lá.
-    Equalize histogram trước để phân biệt tốt hơn giữa các mẫu màu tương tự.
-    Output: 20 chiều  [5 props × 4 distances]
+    - Apply mask trước, equalizeHist để tăng tương phản
+    - Resize về 256×256 cố định → GLCM không phụ thuộc kích thước ảnh
+    - Output: 20 chiều [5 props × 4 distances]
     """
+    # Che nền, chỉ giữ vùng lá
     masked  = cv2.bitwise_and(gray_img, gray_img, mask=mask)
+
+    # Cân bằng histogram → phân biệt tốt hơn giữa các mẫu tương tự
     eq      = cv2.equalizeHist(masked)
     resized = cv2.resize(eq, (256, 256))
 
-    q = np.clip((resized // (256 // GLCM_LEVELS)).astype(np.uint8),
-                0, GLCM_LEVELS - 1)
+    # Quantize về GLCM_LEVELS mức
+    q = np.clip(
+        (resized // (256 // GLCM_LEVELS)).astype(np.uint8),
+        0, GLCM_LEVELS - 1
+    )
 
-    glcm = graycomatrix(q,
-                        distances=GLCM_DIST,
-                        angles=GLCM_ANGLES,
-                        levels=GLCM_LEVELS,
-                        symmetric=True, normed=True)
+    glcm = graycomatrix(
+        q,
+        distances=GLCM_DIST,
+        angles=GLCM_ANGLES,
+        levels=GLCM_LEVELS,
+        symmetric=True, normed=True
+    )
 
     props = ['contrast', 'homogeneity', 'energy', 'correlation', 'dissimilarity']
     return np.concatenate(
-        [graycoprops(glcm, p).mean(axis=1) for p in props]
-    ).astype(np.float32)
+        [graycoprops(glcm, p).mean(axis=1) for p in props]   # mean theo angle, giữ distance
+    ).astype(np.float32)  # 20 chiều
 
+# ── Hàm tổng hợp ─────────────────────────────────────────────────────────────
+def extract_texture_features(preprocessed_gray: np.ndarray) -> np.ndarray | None:
+    """
+    Nhận ảnh xám đã qua preprocess_leaf_image (512×512, nền đen).
+    Trả về vector đặc trưng 46 chiều: [LBP(26) | GLCM(20)]
 
+    Pipeline:
+        preprocess_leaf_image(path)  →  extract_texture_features(gray)
+    """
+    if preprocessed_gray is None:
+        return None
+
+    # Đảm bảo đúng định dạng
+    if preprocessed_gray.dtype != np.uint8:
+        preprocessed_gray = preprocessed_gray.astype(np.uint8)
+
+    mask = get_leaf_mask(preprocessed_gray)
+
+    # Kiểm tra mask hợp lệ (tránh ảnh toàn đen)
+    if cv2.countNonZero(mask) < 500:
+        print("[WARN] Mask quá nhỏ — ảnh có thể lỗi preprocessing")
+        return None
+
+    lbp_feat  = extract_lbp(preprocessed_gray, mask)   # 26 chiều
+    glcm_feat = extract_glcm(preprocessed_gray, mask)  # 20 chiều
+
+    return np.hstack([lbp_feat, glcm_feat]).astype(np.float32)
 def extract_color_moments(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """
     Color Moments trong không gian HSV — màu sắc lá.
@@ -290,7 +362,7 @@ def extract_features(image_path) -> dict:
     img, contour, gray, mask, leaf_area = preprocess_leaf(image_path)
     return {
         "efd":   extract_efd(contour),
-        "glcm":  extract_glcm(gray, mask),
+        "texture":  extract_texture_features(gray),
         "color": extract_color_moments(img, mask),
         "vein":  extract_vein_features(img, mask, leaf_area),
     }
@@ -309,51 +381,11 @@ def _blob_to_arr(blob: bytes) -> np.ndarray:
     """bytes → numpy float32."""
     return np.frombuffer(blob, dtype=np.float32).copy()
 
-
-def init_db(db_path: str) -> sqlite3.Connection:
-    """Tạo kết nối SQLite và khởi tạo schema nếu chưa có."""
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS leaves (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename  TEXT    UNIQUE NOT NULL,
-            path      TEXT    NOT NULL,
-            efd       BLOB    NOT NULL,
-            glcm      BLOB    NOT NULL,
-            color     BLOB    NOT NULL,
-            vein      BLOB    NOT NULL,
-            created   TEXT    NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS meta (
-            key   TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
-    # Lưu tham số extract để truy vết
-    for k, v in [
-        ("harmonics",   str(HARMONICS)),
-        ("n_resample",  str(N_RESAMPLE)),
-        ("glcm_levels", str(GLCM_LEVELS)),
-        ("dim_efd",     str(DIM_EFD)),
-        ("dim_glcm",    str(DIM_GLCM)),
-        ("dim_color",   str(DIM_COLOR)),
-        ("dim_vein",    str(DIM_VEIN)),
-    ]:
-        conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES(?,?)", (k, v))
-    conn.commit()
-    return conn
-
-
 def _get_done_filenames(conn):
     cur = conn.cursor()
     cur.execute("SELECT filename FROM leaf_collection")
     rows = cur.fetchall()
     return {r[0] for r in rows}
-
 
 def insert_entry(conn: sqlite3.Connection,
                  filename: str, path: str,
@@ -377,12 +409,12 @@ def insert_pg(conn, filename, path, feats):
 
     cur.execute("""
         INSERT INTO leaf_collection
-        (filename, image_path, efd, glcm, color, vein)
+        (filename, image_path, efd, texture, color, vein)
         VALUES (%s,%s,%s,%s,%s,%s)
         ON CONFLICT (filename) DO UPDATE SET
             image_path = EXCLUDED.image_path,
             efd = EXCLUDED.efd,
-            glcm = EXCLUDED.glcm,
+            texture = EXCLUDED.texture,
             color = EXCLUDED.color,
             vein = EXCLUDED.vein
     """,
@@ -390,19 +422,16 @@ def insert_pg(conn, filename, path, feats):
         filename,
         path,
         feats["efd"].tolist(),
-        feats["glcm"].tolist(),
+        feats["texture"].tolist(),
         feats["color"].tolist(),
         feats["vein"].tolist()
     ))
 
     conn.commit()
 def load_all_features(conn: sqlite3.Connection) -> list:
-    """
-    Load toàn bộ database vào RAM — dùng cho query / retrieval.
-    Trả về list of dict: {id, filename, path, efd, glcm, color, vein}
-    """
+
     rows = conn.execute(
-        "SELECT id, filename, path, efd, glcm, color, vein FROM leaves"
+          "SELECT id, filename, path, efd, texture, color, vein FROM leaves"
     ).fetchall()
     entries = []
     for rid, fname, path, efd_b, glcm_b, color_b, vein_b in rows:
@@ -411,7 +440,7 @@ def load_all_features(conn: sqlite3.Connection) -> list:
             "filename": fname,
             "path":     path,
             "efd":      _blob_to_arr(efd_b),
-            "glcm":     _blob_to_arr(glcm_b),
+            "texture":     _blob_to_arr(glcm_b),
             "color":    _blob_to_arr(color_b),
             "vein":     _blob_to_arr(vein_b),
         })

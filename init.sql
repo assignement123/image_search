@@ -5,14 +5,8 @@ CREATE TABLE IF NOT EXISTS leaf_collection (
     id          SERIAL PRIMARY KEY,
     filename    VARCHAR(255) UNIQUE NOT NULL,   -- "1027.jpg"
     image_path  TEXT         NOT NULL,           -- đường dẫn đầy đủ
-
-    -- 4 nhóm đặc trưng riêng biệt (float4 = float32)
-    -- EFD: hình dạng biên lá       → 76  chiều  [(harmonics-1) × 4]
-    -- GLCM: texture bề mặt         → 20  chiều  [5 props × 4 distances]
-    -- Color: màu sắc HSV moments   →  9  chiều  [mean, std, skew × H,S,V]
-    -- Vein: gân lá                 →  9  chiều  [density + 8-bin angle hist]
     efd         vector(76)   NOT NULL,
-    glcm        vector(20)   NOT NULL,
+    texture        vector(46)   NOT NULL,
     color       vector(9)    NOT NULL,
     vein        vector(9)    NOT NULL,
 
@@ -44,7 +38,7 @@ INSERT INTO meta (key, value) VALUES
     ('n_resample',  '600'),
     ('glcm_levels', '32'),
     ('dim_efd',     '76'),
-    ('dim_glcm',    '20'),
+    ('dim_texture',    '46'),
     ('dim_color',   '9'),
     ('dim_vein',    '9'),
     ('background',  'white'),
