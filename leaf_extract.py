@@ -403,24 +403,41 @@ def insert_entry(conn: sqlite3.Connection,
         datetime.now().isoformat(timespec="seconds"),
     ))
 
-def insert_pg(conn, filename, path, feats):
+def get_species_from_path(image_path) -> str:
+    """
+    Lấy tên loài từ folder cha của ảnh.
+    Ví dụ: .../leaves_data/1_Phyllostachys_edulis/1001.jpg
+             → "Phyllostachys_edulis"
+    Bỏ phần số và dấu gạch dưới ở đầu folder ("1_", "12_", ...)
+    """
+    folder_name = Path(image_path).parent.name   # vd: "1_Phyllostachys_edulis"
+    # Bỏ prefix số_ (đầu tiên là số, sau đó là dấu _)
+    parts = folder_name.split("_", 1)
+    if len(parts) == 2 and parts[0].isdigit():
+        return parts[1]               # "Phyllostachys_edulis"
+    return folder_name               # trả về nguyên ven nếu không khớp pattern
+
+
+def insert_pg(conn, filename, path, feats, species=None):
 
     cur = conn.cursor()
 
     cur.execute("""
         INSERT INTO leaf_collection
-        (filename, image_path, efd, texture, color, vein)
-        VALUES (%s,%s,%s,%s,%s,%s)
+        (filename, image_path, species, efd, texture, color, vein)
+        VALUES (%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (filename) DO UPDATE SET
             image_path = EXCLUDED.image_path,
-            efd = EXCLUDED.efd,
-            texture = EXCLUDED.texture,
-            color = EXCLUDED.color,
-            vein = EXCLUDED.vein
+            species    = EXCLUDED.species,
+            efd        = EXCLUDED.efd,
+            texture    = EXCLUDED.texture,
+            color      = EXCLUDED.color,
+            vein       = EXCLUDED.vein
     """,
     (
         filename,
         path,
+        species,
         feats["efd"].tolist(),
         feats["texture"].tolist(),
         feats["color"].tolist(),
@@ -485,8 +502,9 @@ def build_database(data_dir: str,
         print(f"[LỖI] Không tìm thấy thư mục: {data_dir}")
         sys.exit(1)
 
+    # Quét đệ quy cả thư mục con (hỗ trợ cấu trúc folder/nhóm_loài/ảnh.jpg)
     image_files = sorted([
-        f for f in data_dir.iterdir()
+        f for f in data_dir.rglob("*")
         if f.is_file() and f.suffix.lower() in IMG_EXTS
     ])
     if not image_files:
@@ -524,7 +542,8 @@ def build_database(data_dir: str,
 
             try:
                 feats = extract_features(fpath)
-                insert_pg(conn, fname, str(fpath), feats)
+                species = get_species_from_path(fpath)
+                insert_pg(conn, fname, str(fpath), feats, species)
                 added += 1
 
                 # Checkpoint mỗi 50 ảnh

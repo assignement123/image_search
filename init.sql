@@ -5,10 +5,12 @@ CREATE TABLE IF NOT EXISTS leaf_collection (
     id          SERIAL PRIMARY KEY,
     filename    VARCHAR(255) UNIQUE NOT NULL,   -- "1027.jpg"
     image_path  TEXT         NOT NULL,           -- đường dẫn đầy đủ
+    species     TEXT,                            -- tên loài từ folder cha (vd: "Phyllostachys_edulis")
     efd         vector(76)   NOT NULL,
     texture        vector(46)   NOT NULL,
     color       vector(9)    NOT NULL,
     vein        vector(9)    NOT NULL,
+    
 
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -18,8 +20,8 @@ CREATE TABLE IF NOT EXISTS leaf_collection (
 CREATE INDEX IF NOT EXISTS idx_efd_cosine
     ON leaf_collection USING hnsw (efd   vector_cosine_ops);
 
-CREATE INDEX IF NOT EXISTS idx_glcm_cosine
-    ON leaf_collection USING hnsw (glcm  vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_texture_cosine
+    ON leaf_collection USING hnsw (texture vector_cosine_ops);
 
 CREATE INDEX IF NOT EXISTS idx_color_cosine
     ON leaf_collection USING hnsw (color vector_cosine_ops);

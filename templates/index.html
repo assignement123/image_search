@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌿 Leaf Image Search</title>
+  <meta name="description" content="Hệ thống tìm kiếm ảnh lá cây bằng đặc trưng hình ảnh — EFD, Texture, Color, Vein" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">🌿</span>
+      <div>
+        <span class="logo-title">LeafSearch</span>
+        <span class="logo-sub">Hệ thống tìm kiếm ảnh lá cây</span>
+      </div>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-btn active" data-tab="search" id="nav-search">🔍 Tìm kiếm</button>
+      <button class="nav-btn" data-tab="browse" id="nav-browse">🌿 Duyệt loài</button>
+      <button class="nav-btn" data-tab="stats" id="nav-stats">📊 Thống kê</button>
+      <button class="nav-btn" data-tab="manage" id="nav-manage">⚙️ Quản lý</button>
+    </nav>
+    <div class="db-badge" id="db-badge">
+      <span class="db-dot"></span>
+      <span id="db-count">Đang kết nối...</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══ MAIN CONTENT ══════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── TAB: SEARCH ─────────────────────────────────────────────── -->
+  <section class="tab-content active" id="tab-search">
+    <div class="search-layout">
+
+      <!-- Left panel: Upload -->
+      <aside class="search-panel glass">
+        <h2 class="panel-title">📤 Upload ảnh lá</h2>
+
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-inner" id="dropzone-inner">
+            <div class="dropzone-icon">🍃</div>
+            <p class="dropzone-text">Kéo thả ảnh vào đây</p>
+            <p class="dropzone-sub">hoặc click để chọn file</p>
+            <input type="file" id="file-input" accept="image/*" hidden />
+            <button class="btn btn-primary" id="select-btn">Chọn ảnh</button>
+          </div>
+          <div class="preview-wrapper" id="preview-wrapper" style="display:none">
+            <img id="preview-img" src="" alt="Preview" class="preview-img" />
+            <button class="btn btn-ghost btn-sm" id="clear-btn">✕ Xóa</button>
+          </div>
+        </div>
+
+        <!-- Weights -->
+        <div class="weights-section">
+          <h3 class="weights-title">⚖️ Trọng số đặc trưng</h3>
+          <div class="weight-row">
+            <label>EFD <span class="badge badge-blue">Hình dạng</span></label>
+            <input type="range" class="slider" id="w-efd" min="0" max="100" value="40" />
+            <span class="weight-val" id="v-efd">40%</span>
+          </div>
+          <div class="weight-row">
+            <label>Texture <span class="badge badge-purple">Bề mặt</span></label>
+            <input type="range" class="slider" id="w-texture" min="0" max="100" value="30" />
+            <span class="weight-val" id="v-texture">30%</span>
+          </div>
+          <div class="weight-row">
+            <label>Color <span class="badge badge-green">Màu sắc</span></label>
+            <input type="range" class="slider" id="w-color" min="0" max="100" value="20" />
+            <span class="weight-val" id="v-color">20%</span>
+          </div>
+          <div class="weight-row">
+            <label>Vein <span class="badge badge-orange">Gân lá</span></label>
+            <input type="range" class="slider" id="w-vein" min="0" max="100" value="10" />
+            <span class="weight-val" id="v-vein">10%</span>
+          </div>
+
+          <div class="topk-row">
+            <label>Số kết quả:</label>
+            <select id="top-k" class="select">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" id="search-btn" disabled>
+          <span id="search-btn-text">🔍 Tìm kiếm</span>
+        </button>
+      </aside>
+
+      <!-- Right panel: Results -->
+      <div class="results-area">
+        <div class="results-header" id="results-header" style="display:none">
+          <h2 class="panel-title">📋 Kết quả tìm kiếm</h2>
+          <span class="results-count" id="results-count"></span>
+        </div>
+
+        <div class="empty-state" id="search-empty">
+          <div class="empty-icon">🔎</div>
+          <p>Upload ảnh lá để bắt đầu tìm kiếm</p>
+          <p class="empty-sub">Hệ thống sẽ tìm các ảnh tương đồng dựa trên đặc trưng hình ảnh</p>
+        </div>
+
+        <div class="loading" id="search-loading" style="display:none">
+          <div class="spinner"></div>
+          <p>Đang phân tích ảnh và tìm kiếm...</p>
+        </div>
+
+        <div class="error-state" id="search-error" style="display:none">
+          <div class="error-icon">⚠️</div>
+          <p id="search-error-msg"></p>
+        </div>
+
+        <div class="results-grid" id="results-grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TAB: BROWSE ─────────────────────────────────────────────── -->
+  <section class="tab-content" id="tab-browse">
+    <div class="browse-layout">
+      <!-- Species list sidebar -->
+      <aside class="species-sidebar glass">
+        <h2 class="panel-title">🌿 Danh sách loài</h2>
+        <div class="search-box">
+          <input type="text" id="species-search" class="input" placeholder="Tìm loài..." />
+        </div>
+        <div class="species-list" id="species-list">
+          <div class="loading"><div class="spinner"></div><p>Đang tải...</p></div>
+        </div>
+      </aside>
+
+      <!-- Species images -->
+      <div class="species-images-area">
+        <div class="empty-state" id="browse-empty">
+          <div class="empty-icon">🌱</div>
+          <p>Chọn một loài để xem ảnh</p>
+        </div>
+        <div id="species-detail" style="display:none">
+          <div class="species-detail-header">
+            <h2 class="species-name" id="species-detail-name"></h2>
+            <span class="badge badge-green" id="species-detail-count"></span>
+          </div>
+          <div class="results-grid" id="species-grid"></div>
+          <div class="pagination" id="species-pagination"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TAB: STATS ──────────────────────────────────────────────── -->
+  <section class="tab-content" id="tab-stats">
+    <div class="stats-layout">
+      <!-- KPI cards -->
+      <div class="kpi-row" id="kpi-row">
+        <div class="kpi-card glass">
+          <div class="kpi-icon">🖼️</div>
+          <div class="kpi-val" id="kpi-total">—</div>
+          <div class="kpi-label">Tổng ảnh</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon">🌿</div>
+          <div class="kpi-val" id="kpi-species">—</div>
+          <div class="kpi-label">Tổng loài</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon">📐</div>
+          <div class="kpi-val" id="kpi-dim">140</div>
+          <div class="kpi-label">Chiều vector</div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon">⚡</div>
+          <div class="kpi-val">pgvector</div>
+          <div class="kpi-label">Vector DB</div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-card glass">
+        <h3 class="panel-title">📊 Phân bố ảnh theo loài</h3>
+        <div class="chart-wrapper">
+          <canvas id="species-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Extract params -->
+      <div class="params-card glass">
+        <h3 class="panel-title">🔧 Tham số trích xuất đặc trưng</h3>
+        <div class="params-grid" id="params-grid">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TAB: MANAGE ─────────────────────────────────────────────── -->
+  <section class="tab-content" id="tab-manage">
+    <div class="manage-layout">
+      <div class="manage-card glass">
+        <h2 class="panel-title">⚙️ Quản lý Database</h2>
+        <p class="manage-desc">
+          Build database từ thư mục <code>leaves_data/</code> chứa 32 loài lá.
+          Hệ thống sẽ trích xuất 4 nhóm đặc trưng (EFD, Texture, Color, Vein) và lưu vào PostgreSQL.
+        </p>
+
+        <div class="action-row">
+          <div class="action-card">
+            <div class="action-icon">➕</div>
+            <h3>Thêm ảnh mới</h3>
+            <p>Chỉ xử lý ảnh chưa có trong DB (tiết kiệm thời gian)</p>
+            <button class="btn btn-primary" id="btn-build">🚀 Build (Resume)</button>
+          </div>
+          <div class="action-card action-card-danger">
+            <div class="action-icon">🔄</div>
+            <h3>Build lại toàn bộ</h3>
+            <p>Xóa toàn bộ dữ liệu cũ và extract lại từ đầu</p>
+            <button class="btn btn-danger" id="btn-rebuild">⚠️ Rebuild All</button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-section" id="progress-section" style="display:none">
+          <h3>⏳ Tiến trình</h3>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-info">
+            <span id="progress-text">0 / 0</span>
+            <span id="progress-pct">0%</span>
+          </div>
+          <div class="progress-stats">
+            <span class="stat-item stat-green">✓ <span id="p-added">0</span> thêm mới</span>
+            <span class="stat-item stat-gray">○ <span id="p-skipped">0</span> bỏ qua</span>
+            <span class="stat-item stat-red">✗ <span id="p-errors">0</span> lỗi</span>
+          </div>
+          <div class="progress-msg" id="progress-msg"></div>
+        </div>
+      </div>
+
+      <!-- DB info card -->
+      <div class="manage-card glass">
+        <h2 class="panel-title">🗄️ Thông tin Database</h2>
+        <div class="db-info-grid">
+          <div class="db-info-item">
+            <span class="db-info-label">Host</span>
+            <code>localhost:5433</code>
+          </div>
+          <div class="db-info-item">
+            <span class="db-info-label">Database</span>
+            <code>leaf_db</code>
+          </div>
+          <div class="db-info-item">
+            <span class="db-info-label">Table</span>
+            <code>leaf_collection</code>
+          </div>
+          <div class="db-info-item">
+            <span class="db-info-label">Extension</span>
+            <code>pgvector</code>
+          </div>
+          <div class="db-info-item">
+            <span class="db-info-label">Index type</span>
+            <code>HNSW (cosine)</code>
+          </div>
+          <div class="db-info-item">
+            <span class="db-info-label">Thư mục ảnh</span>
+            <code>leaves_data/</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══ LIGHTBOX ════════════════════════════════════════════════════ -->
+<div class="lightbox" id="lightbox" style="display:none" onclick="closeLightbox()">
+  <div class="lightbox-content" onclick="event.stopPropagation()">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <img id="lightbox-img" src="" alt="" class="lightbox-img" />
+    <div class="lightbox-info">
+      <p class="lightbox-filename" id="lightbox-filename"></p>
+      <p class="lightbox-species" id="lightbox-species"></p>
+      <p class="lightbox-score" id="lightbox-score"></p>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
