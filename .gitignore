@@ -40,3 +40,4 @@ target/
 .venv/
 __pycache__/
 debug_outputs/
+leaves_data
