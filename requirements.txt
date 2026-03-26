@@ -1,8 +1,10 @@
-pyefd
+numpy
+opencv-python-headless
 scikit-image
 scipy
 tqdm
-opencv-python
+pyefd
 psycopg2-binary
 flask
 flask-cors
+matplotlib

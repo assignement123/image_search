@@ -7,11 +7,13 @@ CÁCH DÙNG:
   python leaf_debug.py <ảnh_lá>
   python leaf_debug.py <ảnh_lá> --out <thư_mục_output>
 
-OUTPUT (~41 ảnh PNG trong --out, mặc định: debug_out/):
+OUTPUT (~47 ảnh PNG trong --out, mặc định: debug_out/):
   step1_00..08  — Tiền xử lý: grayscale, Otsu INV, morph, contour, mask
   step2a_00..07 — EFD: contour gốc, resample, tái tạo 5 bậc, biên độ
-  step2b_00..05 — GLCM: equalize, quantize, matrix, 5 properties
-  step2c_00..06 — Color: HSV channels, histogram H/S/V, bar chart moments
+  step2b_00..09 — Texture (LBP + GLCM):
+                    00..03 LBP: uniform map, histogram, vùng lá, so sánh radius
+                    04..09 GLCM: equalize, quantize, matrix, 5 properties
+  step2c_00..05 — Color: HSV channels, histogram H/S/V, bar chart moments
   step2d_00..11 — Gân lá: CLAHE, bilateral, Canny, Sobel, angle histogram
   step3_00      — Tổng hợp 4 vector đặc trưng (bar chart)
 """
@@ -21,7 +23,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from skimage.feature import graycomatrix, graycoprops
+from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 from pyefd import elliptic_fourier_descriptors
 from scipy.stats import circmean
 import os
@@ -32,11 +34,13 @@ import argparse
 try:
     from leaf_extract import (
         preprocess_leaf, _resample_contour,
-        extract_efd, extract_glcm, extract_color_moments,
+        extract_efd, extract_texture_features, extract_color_moments,
         extract_vein_features, extract_features,
+        get_leaf_mask,
         HARMONICS, N_RESAMPLE,
         GLCM_DIST, GLCM_ANGLES, GLCM_LEVELS,
-        DIM_EFD, DIM_GLCM, DIM_COLOR, DIM_VEIN,
+        LBP_P, LBP_R,
+        DIM_EFD, DIM_TEXTURE, DIM_COLOR, DIM_VEIN,
     )
 except ImportError:
     print("[LỖI] Không tìm thấy leaf_extract.py — đặt cùng thư mục!")
@@ -156,170 +160,187 @@ def debug_preprocess(image_path: str, out_dir: str) -> None:
 # ════════════════════════════════════════════════════════════════════
 # BƯỚC 2A — EFD  (8 ảnh)
 # ════════════════════════════════════════════════════════════════════
+
 def debug_efd(contour: np.ndarray, out_dir: str) -> None:
     print("\n[BƯỚC 2A] EFD — Hình dạng biên lá")
     p = lambda n: os.path.join(out_dir, n)
 
     contour = np.asarray(contour, np.float64).reshape(-1, 2)
 
-    # ─────────────────────────────
     # 00 - Contour gốc
-    # ─────────────────────────────
-    fig, ax = plt.subplots(figsize=(5,5))
-    ax.plot(contour[:,0], contour[:,1], 'b-', lw=1.5)
-    ax.plot(contour[0,0], contour[0,1], 'ro', ms=8)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.plot(contour[:, 0], contour[:, 1], 'b-', lw=1.5)
+    ax.plot(contour[0, 0], contour[0, 1], 'ro', ms=8)
     ax.set_title(f"00 — Contour gốc ({len(contour)} điểm)", fontweight='bold')
-    ax.set_aspect('equal')
-    ax.invert_yaxis()
-    ax.grid(alpha=0.3)
-
+    ax.set_aspect('equal'); ax.invert_yaxis(); ax.grid(alpha=0.3)
     plt.tight_layout()
     plt.savefig(p("step2a_00_contour_raw.png"), dpi=110)
-    plt.close()
+    plt.close(); print(f"    → step2a_00_contour_raw.png")
 
-    # ─────────────────────────────
     # 01 - Resample contour
-    # ─────────────────────────────
     rs = _resample_contour(contour, N_RESAMPLE)
-
-    fig, ax = plt.subplots(figsize=(5,5))
-    ax.plot(rs[:,0], rs[:,1], 'g-', lw=1.5)
-    ax.scatter(rs[::30,0], rs[::30,1], c='red', s=20)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.plot(rs[:, 0], rs[:, 1], 'g-', lw=1.5)
+    ax.scatter(rs[::30, 0], rs[::30, 1], c='red', s=20)
     ax.set_title(f"01 — Resample ({N_RESAMPLE} điểm)", fontweight='bold')
-    ax.set_aspect('equal')
-    ax.invert_yaxis()
-    ax.grid(alpha=0.3)
-
+    ax.set_aspect('equal'); ax.invert_yaxis(); ax.grid(alpha=0.3)
     plt.tight_layout()
     plt.savefig(p("step2a_01_resampled.png"), dpi=110)
-    plt.close()
+    plt.close(); print(f"    → step2a_01_resampled.png")
 
-    # ─────────────────────────────
     # Tính EFD
-    # ─────────────────────────────
-    coeffs = elliptic_fourier_descriptors(
-        rs,
-        order=HARMONICS,
-        normalize=False
-    )
+    coeffs = elliptic_fourier_descriptors(rs, order=HARMONICS, normalize=False)
+    A0 = rs[:, 0].mean()
+    C0 = rs[:, 1].mean()
+    t  = np.linspace(0, 1, N_RESAMPLE)
 
-    # centroid chuẩn
-    A0 = rs[:,0].mean()
-    C0 = rs[:,1].mean()
-
-    t = np.linspace(0,1,N_RESAMPLE)
-
-    # ─────────────────────────────
-    # Hàm reconstruct chuẩn
-    # ─────────────────────────────
     def reconstruct(n_max):
-
         x = np.full_like(t, A0)
         y = np.full_like(t, C0)
-
         for n in range(n_max):
-
             an, bn, cn, dn = coeffs[n]
-
-            k = n + 1   # harmonic index thực
-
-            x += an*np.cos(2*np.pi*k*t) + bn*np.sin(2*np.pi*k*t)
-            y += cn*np.cos(2*np.pi*k*t) + dn*np.sin(2*np.pi*k*t)
-
+            k = n + 1
+            x += an * np.cos(2 * np.pi * k * t) + bn * np.sin(2 * np.pi * k * t)
+            y += cn * np.cos(2 * np.pi * k * t) + dn * np.sin(2 * np.pi * k * t)
         return x, y
 
-    cx = rs[:,0]
-    cy = rs[:,1]
+    cx, cy = rs[:, 0], rs[:, 1]
 
-    # ─────────────────────────────
     # Tái tạo các bậc
-    # ─────────────────────────────
-    for i, n_h in enumerate([1,3,6,12,HARMONICS]):
-
-        x,y = reconstruct(n_h)
-
-        fig, axes = plt.subplots(1,2,figsize=(12,4))
-
-        # Không gian Fourier
-        axes[0].plot(x,y,'b-',lw=2)
-        axes[0].set_title(f'EFD space (n={n_h})',fontweight='bold')
-        axes[0].set_aspect('equal')
-        axes[0].invert_yaxis()
-        axes[0].grid(alpha=0.3)
-
-        # Pixel space
-        axes[1].plot(cx,cy,'g--',lw=1.5,label='Contour gốc')
-        axes[1].plot(x,y,'b-',lw=2,label=f'Reconstruct n={n_h}')
-        axes[1].set_title('So sánh pixel space',fontweight='bold')
-        axes[1].set_aspect('equal')
-        axes[1].invert_yaxis()
-        axes[1].legend()
-        axes[1].grid(alpha=0.3)
-
-        fname=f"step2a_{i+2:02d}_reconstruct_n{n_h}.png"
-
-        plt.suptitle(f"Tái tạo EFD bậc {n_h}",fontweight='bold')
+    for i, n_h in enumerate([1, 3, 6, 12, HARMONICS]):
+        x, y = reconstruct(n_h)
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        axes[0].plot(x, y, 'b-', lw=2)
+        axes[0].set_title(f'EFD space (n={n_h})', fontweight='bold')
+        axes[0].set_aspect('equal'); axes[0].invert_yaxis(); axes[0].grid(alpha=0.3)
+        axes[1].plot(cx, cy, 'g--', lw=1.5, label='Contour gốc')
+        axes[1].plot(x, y, 'b-', lw=2, label=f'Reconstruct n={n_h}')
+        axes[1].set_title('So sánh pixel space', fontweight='bold')
+        axes[1].set_aspect('equal'); axes[1].invert_yaxis()
+        axes[1].legend(); axes[1].grid(alpha=0.3)
+        fname = f"step2a_{i+2:02d}_reconstruct_n{n_h}.png"
+        plt.suptitle(f"Tái tạo EFD bậc {n_h}", fontweight='bold')
         plt.tight_layout()
-        plt.savefig(p(fname),dpi=110)
-        plt.close()
+        plt.savefig(p(fname), dpi=110)
+        plt.close(); print(f"    → {fname}")
 
-        print(f"    → {fname}")
-
-    # ─────────────────────────────
     # Amplitude plot
-    # ─────────────────────────────
-    amps = [
-        np.sqrt(sum(c**2 for c in coeffs[n]))
-        for n in range(1,len(coeffs))
-    ]
-
-    fig, ax = plt.subplots(figsize=(10,4))
-    ax.bar(range(1,len(amps)+1), amps)
-
-    ax.set_xlabel("Harmonic n")
-    ax.set_ylabel("Amplitude")
-    ax.set_title("07 — Biên độ EFD theo bậc",fontweight='bold')
-
-    ax.grid(axis='y',alpha=0.3)
-
+    amps = [np.sqrt(sum(c**2 for c in coeffs[n])) for n in range(1, len(coeffs))]
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.bar(range(1, len(amps) + 1), amps)
+    ax.set_xlabel("Harmonic n"); ax.set_ylabel("Amplitude")
+    ax.set_title("07 — Biên độ EFD theo bậc", fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(p("step2a_07_amplitudes.png"),dpi=110)
-    plt.close()
+    plt.savefig(p("step2a_07_amplitudes.png"), dpi=110)
+    plt.close(); print(f"    → step2a_07_amplitudes.png")
 
-    print("    → step2a_07_amplitudes.png")
 
 # ════════════════════════════════════════════════════════════════════
-# BƯỚC 2B — GLCM  (6 ảnh)
+# BƯỚC 2B — TEXTURE: LBP + GLCM  (10 ảnh)
 # ════════════════════════════════════════════════════════════════════
 
-def debug_glcm(gray_img: np.ndarray, mask: np.ndarray, out_dir: str) -> None:
-    print("\n[BƯỚC 2B] GLCM — Texture bề mặt lá")
+def debug_texture(gray_img: np.ndarray, out_dir: str) -> None:
+    """
+    Debug toàn bộ pipeline texture (khớp extract_texture_features):
+      - Tạo mask từ gray_img (nền đen = 0)
+      - LBP  → 4 ảnh  (step2b_00 ÷ step2b_03)
+      - GLCM → 6 ảnh  (step2b_04 ÷ step2b_09)
+    """
+    print("\n[BƯỚC 2B] Texture — LBP (26 chiều) + GLCM (20 chiều) = 46 chiều")
     p = lambda n: os.path.join(out_dir, n)
 
-    # 00 - Ảnh xám cắt vùng lá
+    if gray_img.dtype != np.uint8:
+        gray_img = gray_img.astype(np.uint8)
+
+    # ── Tạo mask (giống get_leaf_mask trong extract) ─────────────────
+    mask = get_leaf_mask(gray_img)
+
+    # ════════════════════════════════════
+    # LBP SECTION  (step2b_00 ÷ 03)
+    # ════════════════════════════════════
+    print("  [LBP]")
+
+    # 00 — Ảnh xám đầu vào (sau preprocess, nền đen)
+    _save("00 — Ảnh xám đầu vào (preprocess, nền đen)",
+          gray_img, p("step2b_00_gray_input.png"))
+
+    # 01 — LBP map toàn ảnh
+    lbp_map = local_binary_pattern(gray_img, LBP_P, LBP_R, method="uniform")
+    lbp_vis = (lbp_map / (LBP_P + 2) * 255).astype(np.uint8)
+    _save(f"01 — LBP map (P={LBP_P}, R={LBP_R}, uniform)",
+          lbp_vis, p("step2b_01_lbp_map.png"))
+
+    # 02 — LBP chỉ trong vùng lá (mask)
+    lbp_masked_vis = cv2.bitwise_and(lbp_vis, lbp_vis, mask=mask)
+    _save("02 — LBP map cắt vùng lá", lbp_masked_vis, p("step2b_02_lbp_masked.png"))
+
+    # 03 — Histogram LBP (P+2 bins, uniform)
+    lbp_in_mask = lbp_map[mask > 0]
+    hist_lbp, _ = np.histogram(
+        lbp_in_mask,
+        bins=np.arange(0, LBP_P + 3),
+        range=(0, LBP_P + 2)
+    )
+    hist_lbp_norm = hist_lbp.astype(np.float32) / (hist_lbp.sum() + 1e-7)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+    axes[0].bar(range(len(hist_lbp)), hist_lbp, color='steelblue',
+                edgecolor='white', alpha=0.85)
+    axes[0].set_title(f"Histogram LBP (thô) — {len(hist_lbp)} bins",
+                      fontweight='bold')
+    axes[0].set_xlabel("Bin (pattern code)"); axes[0].set_ylabel("Số pixel")
+    axes[0].grid(axis='y', alpha=0.3)
+
+    axes[1].bar(range(len(hist_lbp_norm)), hist_lbp_norm, color='coral',
+                edgecolor='white', alpha=0.85)
+    axes[1].set_title("Histogram LBP (chuẩn hoá) → 26 chiều", fontweight='bold')
+    axes[1].set_xlabel("Bin (pattern code)"); axes[1].set_ylabel("Tần suất")
+    axes[1].grid(axis='y', alpha=0.3)
+    for i, v in enumerate(hist_lbp_norm):
+        if v > 0.01:
+            axes[1].text(i, v + 0.003, f'{v:.2f}',
+                         ha='center', va='bottom', fontsize=6.5)
+
+    plt.suptitle(
+        f"03 — LBP Histogram (P={LBP_P}, R={LBP_R})  |  "
+        f"Uniform patterns: {LBP_P + 2} bins",
+        fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(p("step2b_03_lbp_histogram.png"), dpi=110, bbox_inches='tight')
+    plt.close(); print(f"    → step2b_03_lbp_histogram.png")
+
+    # ════════════════════════════════════
+    # GLCM SECTION  (step2b_04 ÷ 09)
+    # ════════════════════════════════════
+    print("  [GLCM]")
+
+    # 04 — Ảnh xám cắt vùng lá
     masked = cv2.bitwise_and(gray_img, gray_img, mask=mask)
-    _save("00 — Ảnh xám, cắt vùng lá", masked, p("step2b_00_masked_gray.png"))
+    _save("04 — Ảnh xám, cắt vùng lá (trước equalize)",
+          masked, p("step2b_04_masked_gray.png"))
 
-    # 01 - Equalize (cải tiến so với bản gốc)
+    # 05 — Equalize
     eq = cv2.equalizeHist(masked)
-    _save("01 — Equalize histogram (tăng phân biệt texture)", eq,
-          p("step2b_01_equalized.png"))
+    _save("05 — Equalize histogram (tăng phân biệt texture)",
+          eq, p("step2b_05_equalized.png"))
 
-    # 02 - Histogram so sánh trước/sau equalize
+    # 06 — Histogram so sánh trước/sau equalize
     px_before = masked[mask > 0].flatten().astype(float)
     px_after  = eq[mask > 0].flatten().astype(float)
-    _save_hist("02 — Histogram trước / sau Equalize",
+    _save_hist("06 — Histogram trước / sau Equalize",
                [px_before, px_after], ['Gốc', 'Sau Equalize'],
-               ['steelblue', 'coral'], p("step2b_02_hist_equalize.png"))
+               ['steelblue', 'coral'], p("step2b_06_hist_equalize.png"))
 
-    # 03 - Quantize
+    # 07 — Quantize
     resized = cv2.resize(eq, (256, 256))
     q = np.clip((resized // (256 // GLCM_LEVELS)).astype(np.uint8),
                 0, GLCM_LEVELS - 1)
-    _save(f"03 — Quantize {GLCM_LEVELS} mức xám",
-          (q * (255 // GLCM_LEVELS)).astype(np.uint8), p("step2b_03_quantized.png"))
+    _save(f"07 — Quantize {GLCM_LEVELS} mức xám",
+          (q * (255 // GLCM_LEVELS)).astype(np.uint8),
+          p("step2b_07_quantized.png"))
 
-    # 04 - Ma trận GLCM 4 góc
+    # 08 — Ma trận GLCM 4 góc
     glcm = graycomatrix(q, distances=[3], angles=GLCM_ANGLES,
                         levels=GLCM_LEVELS, symmetric=True, normed=True)
     fig, axes = plt.subplots(1, 4, figsize=(16, 4))
@@ -328,12 +349,12 @@ def debug_glcm(gray_img: np.ndarray, mask: np.ndarray, out_dir: str) -> None:
         im = ax.imshow(glcm[:, :, 0, i], cmap='hot', aspect='auto')
         plt.colorbar(im, ax=ax, fraction=0.046)
         ax.set_title(f'd=3, góc={name}', fontweight='bold')
-    plt.suptitle("04 — Ma trận GLCM theo 4 góc (d=3)", fontweight='bold')
+    plt.suptitle("08 — Ma trận GLCM theo 4 góc (d=3)", fontweight='bold')
     plt.tight_layout()
-    plt.savefig(p("step2b_04_glcm_matrix.png"), dpi=110, bbox_inches='tight')
-    plt.close(); print(f"    → step2b_04_glcm_matrix.png")
+    plt.savefig(p("step2b_08_glcm_matrix.png"), dpi=110, bbox_inches='tight')
+    plt.close(); print(f"    → step2b_08_glcm_matrix.png")
 
-    # 05 - 5 properties theo 4 khoảng cách
+    # 09 — 5 properties × 4 khoảng cách
     glcm_full = graycomatrix(q, distances=GLCM_DIST, angles=GLCM_ANGLES,
                              levels=GLCM_LEVELS, symmetric=True, normed=True)
     props  = ['contrast', 'homogeneity', 'energy', 'correlation', 'dissimilarity']
@@ -341,25 +362,56 @@ def debug_glcm(gray_img: np.ndarray, mask: np.ndarray, out_dir: str) -> None:
     fig, axes = plt.subplots(1, 5, figsize=(18, 4))
     for ax, prop, clr in zip(axes, props, colors):
         vals = graycoprops(glcm_full, prop).mean(axis=1)
-        ax.bar([f'd={d}' for d in GLCM_DIST], vals, color=clr, alpha=0.85,
-               edgecolor='white')
+        ax.bar([f'd={d}' for d in GLCM_DIST], vals, color=clr,
+               alpha=0.85, edgecolor='white')
         ax.set_title(prop.capitalize(), fontweight='bold')
         ax.grid(axis='y', alpha=0.3)
         for j, v in enumerate(vals):
-            ax.text(j, v + abs(v)*0.03, f'{v:.4f}',
+            ax.text(j, v + abs(v) * 0.03, f'{v:.4f}',
                     ha='center', va='bottom', fontsize=7.5)
-    plt.suptitle("05 — 5 thuộc tính GLCM × 4 khoảng cách", fontweight='bold')
+    plt.suptitle("09 — 5 thuộc tính GLCM × 4 khoảng cách", fontweight='bold')
     plt.tight_layout()
-    plt.savefig(p("step2b_05_properties.png"), dpi=110, bbox_inches='tight')
-    plt.close(); print(f"    → step2b_05_properties.png")
+    plt.savefig(p("step2b_09_glcm_properties.png"), dpi=110, bbox_inches='tight')
+    plt.close(); print(f"    → step2b_09_glcm_properties.png")
 
-    vec = extract_glcm(gray_img, mask)
-    print(f"  Vector GLCM ({len(vec)} chiều): {vec.round(4)}")
-    print(f"  → Tổng: 6 ảnh (step2b_00 ÷ step2b_05)")
+    # ── Tổng kết vector texture ───────────────────────────────────
+    vec = extract_texture_features(gray_img)
+    if vec is not None:
+        lbp_part  = vec[:LBP_P + 2]     # 26 chiều
+        glcm_part = vec[LBP_P + 2:]     # 20 chiều
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+        axes[0].bar(range(len(lbp_part)),  lbp_part,  color='steelblue',
+                    edgecolor='white', alpha=0.85)
+        axes[0].set_title(f"LBP vector ({len(lbp_part)} chiều)", fontweight='bold')
+        axes[0].set_xlabel("Bin"); axes[0].set_ylabel("Tần suất")
+        axes[0].grid(axis='y', alpha=0.3)
+
+        axes[1].bar(range(len(glcm_part)), glcm_part, color='coral',
+                    edgecolor='white', alpha=0.85)
+        axes[1].set_title(f"GLCM vector ({len(glcm_part)} chiều)", fontweight='bold')
+        axes[1].set_xlabel("Chiều"); axes[1].set_ylabel("Giá trị")
+        axes[1].grid(axis='y', alpha=0.3)
+
+        plt.suptitle(
+            f"Tổng hợp vector Texture = LBP({len(lbp_part)}) + GLCM({len(glcm_part)}) "
+            f"= {len(vec)} chiều",
+            fontweight='bold')
+        plt.tight_layout()
+        plt.savefig(p("step2b_10_texture_vector.png"), dpi=110, bbox_inches='tight')
+        plt.close(); print(f"    → step2b_10_texture_vector.png")
+
+        print(f"  Vector LBP  (26 chiều): {lbp_part.round(4)}")
+        print(f"  Vector GLCM (20 chiều): {glcm_part.round(4)}")
+        print(f"  Vector Texture ({len(vec)} chiều): OK")
+    else:
+        print("  [WARN] extract_texture_features trả về None — kiểm tra lại ảnh")
+
+    print(f"  → Tổng: 11 ảnh (step2b_00 ÷ step2b_10)")
 
 
 # ════════════════════════════════════════════════════════════════════
-# BƯỚC 2C — COLOR MOMENTS  (7 ảnh)
+# BƯỚC 2C — COLOR MOMENTS  (6 ảnh)
 # ════════════════════════════════════════════════════════════════════
 
 def debug_color_moments(img: np.ndarray, mask: np.ndarray, out_dir: str) -> None:
@@ -374,7 +426,7 @@ def debug_color_moments(img: np.ndarray, mask: np.ndarray, out_dir: str) -> None
     mhsv = cv2.bitwise_and(hsv, hsv, mask=mask)
     h, s, v = cv2.split(mhsv)
     fig, axes = plt.subplots(1, 3, figsize=(13, 4))
-    axes[0].imshow(cv2.applyColorMap((h*(255//179)).astype(np.uint8),
+    axes[0].imshow(cv2.applyColorMap((h * (255 // 179)).astype(np.uint8),
                                       cv2.COLORMAP_HSV))
     axes[0].set_title("Kênh H (Hue 0-179)", fontweight='bold'); axes[0].axis('off')
     axes[1].imshow(s, cmap='Blues')
@@ -393,7 +445,7 @@ def debug_color_moments(img: np.ndarray, mask: np.ndarray, out_dir: str) -> None
 
     # 02 - Histogram H với circular mean
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.hist(px_h, bins=36, range=(0,179), color='coral', alpha=0.8, edgecolor='white')
+    ax.hist(px_h, bins=36, range=(0, 179), color='coral', alpha=0.8, edgecolor='white')
     ax.axvline(mean_h, color='red', lw=2.5, ls='--',
                label=f'circmean = {mean_h:.1f}')
     ax.axvline(np.mean(px_h), color='navy', lw=2, ls=':',
@@ -408,7 +460,7 @@ def debug_color_moments(img: np.ndarray, mask: np.ndarray, out_dir: str) -> None
 
     # 03 - Histogram S
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.hist(px_s, bins=32, range=(0,255), color='dodgerblue', alpha=0.8,
+    ax.hist(px_s, bins=32, range=(0, 255), color='dodgerblue', alpha=0.8,
             edgecolor='white')
     ax.axvline(np.mean(px_s), color='red', lw=2.5, ls='--',
                label=f'mean={np.mean(px_s):.1f}  std={np.std(px_s):.1f}')
@@ -421,7 +473,7 @@ def debug_color_moments(img: np.ndarray, mask: np.ndarray, out_dir: str) -> None
 
     # 04 - Histogram V
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.hist(px_v, bins=32, range=(0,255), color='seagreen', alpha=0.8,
+    ax.hist(px_v, bins=32, range=(0, 255), color='seagreen', alpha=0.8,
             edgecolor='white')
     ax.axvline(np.mean(px_v), color='red', lw=2.5, ls='--',
                label=f'mean={np.mean(px_v):.1f}  std={np.std(px_v):.1f}')
@@ -432,20 +484,20 @@ def debug_color_moments(img: np.ndarray, mask: np.ndarray, out_dir: str) -> None
     plt.savefig(p("step2c_04_hist_V.png"), dpi=110, bbox_inches='tight')
     plt.close(); print(f"    → step2c_04_hist_V.png")
 
-    # 05 - 3 moments cho mỗi kênh (scatter overview)
+    # 05 - Bar chart 9 moments
     vec    = extract_color_moments(img, mask)
-    labels = ['H_mean','H_std','H_skew','S_mean','S_std','S_skew','V_mean','V_std','V_skew']
-    clrs   = ['#e74c3c']*3 + ['#3498db']*3 + ['#2ecc71']*3
+    labels = ['H_mean', 'H_std', 'H_skew', 'S_mean', 'S_std', 'S_skew',
+              'V_mean', 'V_std', 'V_skew']
+    clrs   = ['#e74c3c'] * 3 + ['#3498db'] * 3 + ['#2ecc71'] * 3
     fig, ax = plt.subplots(figsize=(11, 4))
     bars = ax.bar(labels, vec, color=clrs, alpha=0.85, edgecolor='white')
     for bar, val in zip(bars, vec):
         off = abs(val) * 0.04 + 0.5
-        ax.text(bar.get_x() + bar.get_width()/2,
+        ax.text(bar.get_x() + bar.get_width() / 2,
                 val + (off if val >= 0 else -off - 1.5),
                 f'{val:.2f}', ha='center', va='bottom', fontsize=8)
     ax.set_title("05 — Vector Color Moments (9 chiều)\n"
-                 "Đỏ: H | Xanh dương: S | Xanh lá: V",
-                 fontweight='bold')
+                 "Đỏ: H | Xanh dương: S | Xanh lá: V", fontweight='bold')
     ax.set_ylabel('Giá trị'); ax.axhline(0, color='black', lw=0.8)
     ax.grid(axis='y', alpha=0.3); plt.xticks(rotation=30, ha='right')
     plt.tight_layout()
@@ -485,7 +537,7 @@ def debug_vein_features(img: np.ndarray, mask: np.ndarray,
     _save("04 — Bilateral filter (giữ cạnh, khử nhiễu)", smooth,
           p("step2d_04_bilateral.png"))
 
-    # Diff = nhiễu đã lọc
+    # Diff
     diff = cv2.absdiff(enhanced, smooth)
     _save("05 — CLAHE − Bilateral = nhiễu bị khử", diff,
           p("step2d_05_diff_noise.png"))
@@ -521,7 +573,7 @@ def debug_vein_features(img: np.ndarray, mask: np.ndarray,
     angle_map = np.arctan2(sy, sx) * 180.0 / np.pi % 180.0
     angle_vis = (angle_map / 180.0 * 255).astype(np.uint8)
     angle_clr = cv2.applyColorMap(angle_vis, cv2.COLORMAP_HSV)
-    vein3     = cv2.cvtColor((vein > 0).astype(np.uint8)*255, cv2.COLOR_GRAY2BGR)
+    vein3     = cv2.cvtColor((vein > 0).astype(np.uint8) * 255, cv2.COLOR_GRAY2BGR)
     overlay   = cv2.bitwise_and(angle_clr, vein3)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -530,9 +582,9 @@ def debug_vein_features(img: np.ndarray, mask: np.ndarray,
     axes[0].axis('off')
 
     if (vein > 0).any():
-        angles  = angle_map[vein > 0]
+        angles   = angle_map[vein > 0]
         hist, edges2 = np.histogram(angles, bins=8, range=(0, 180), density=True)
-        bin_ctr = (edges2[:-1] + edges2[1:]) / 2
+        bin_ctr  = (edges2[:-1] + edges2[1:]) / 2
         axes[1].bar(bin_ctr, hist, width=20, color='steelblue',
                     edgecolor='white', alpha=0.85)
         peak = bin_ctr[np.argmax(hist)]
@@ -561,33 +613,48 @@ def debug_summary(image_path: str, out_dir: str) -> None:
     print("\n[BƯỚC 3] Tổng hợp vector đặc trưng cuối cùng")
     feats = extract_features(image_path)
 
+    # ── In bảng tóm tắt ra terminal ──────────────────────────────
     total = 0
-    print(f"\n  {'─'*56}")
+    print(f"\n  {'─'*60}")
     for k, v in feats.items():
-        print(f"  {k:<6} | {len(v):>3} chiều | "
-              f"min={v.min():.4f}  max={v.max():.4f}  mean={v.mean():.4f}")
-        total += len(v)
-    print(f"  {'─'*56}")
-    print(f"  {'TỔNG':<6} | {total:>3} chiều  (EFD={DIM_EFD} + "
-          f"GLCM={DIM_GLCM} + Color={DIM_COLOR} + Vein={DIM_VEIN})")
-    print(f"  {'─'*56}\n")
+        if v is not None:
+            print(f"  {k:<8} | {len(v):>3} chiều | "
+                  f"min={v.min():.4f}  max={v.max():.4f}  mean={v.mean():.4f}")
+            total += len(v)
+        else:
+            print(f"  {k:<8} | None (lỗi extract)")
+    print(f"  {'─'*60}")
+    print(f"  {'TỔNG':<8} | {total:>3} chiều  "
+          f"(EFD={DIM_EFD} + Texture={DIM_TEXTURE} + "
+          f"Color={DIM_COLOR} + Vein={DIM_VEIN})")
+    print(f"  {'─'*60}\n")
 
-    # Bar chart 4 nhóm
-    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+    # ── Bar chart 4 nhóm ──────────────────────────────────────────
+    #   Texture chia thêm thành LBP / GLCM cho dễ đọc
+    lbp_vec  = feats["texture"][:LBP_P + 2]   if feats["texture"] is not None else np.zeros(LBP_P + 2)
+    glcm_vec = feats["texture"][LBP_P + 2:]   if feats["texture"] is not None else np.zeros(20)
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 8))
+
     configs = [
-        (f"EFD ({DIM_EFD} chiều)",   feats["efd"],   '#3498db'),
-        (f"GLCM ({DIM_GLCM} chiều)", feats["glcm"],  '#e74c3c'),
-        (f"Color ({DIM_COLOR} chiều)", feats["color"], '#2ecc71'),
-        (f"Vein ({DIM_VEIN} chiều)",  feats["vein"],  '#9b59b6'),
+        (f"EFD ({DIM_EFD} chiều)",              feats["efd"],    '#3498db'),
+        (f"LBP ({LBP_P + 2} chiều)",             lbp_vec,         '#1abc9c'),
+        (f"GLCM (20 chiều)",                      glcm_vec,        '#e74c3c'),
+        (f"Color ({DIM_COLOR} chiều)",            feats["color"],  '#2ecc71'),
+        (f"Vein ({DIM_VEIN} chiều)",              feats["vein"],   '#9b59b6'),
     ]
+    # ẩn subplot thứ 6 (chỉ dùng 5 nhóm)
+    axes.flat[5].set_visible(False)
+
     for ax, (title, vec, clr) in zip(axes.flat, configs):
-        ax.bar(range(len(vec)), vec, color=clr, alpha=0.8, edgecolor='white')
+        if vec is not None:
+            ax.bar(range(len(vec)), vec, color=clr, alpha=0.8, edgecolor='white')
         ax.set_title(title, fontweight='bold')
         ax.set_xlabel('Chiều'); ax.set_ylabel('Giá trị')
         ax.axhline(0, color='black', lw=0.5); ax.grid(axis='y', alpha=0.3)
 
     plt.suptitle(
-        f"Tổng hợp 4 vector đặc trưng ({total} chiều)\n"
+        f"Tổng hợp 5 nhóm đặc trưng ({total} chiều)\n"
         f"Ảnh: {os.path.basename(image_path)}",
         fontsize=12, fontweight='bold')
     plt.tight_layout()
@@ -602,7 +669,7 @@ def debug_summary(image_path: str, out_dir: str) -> None:
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Debug chi tiết từng bước trích xuất đặc trưng lá (~41 ảnh PNG)",
+        description="Debug chi tiết từng bước trích xuất đặc trưng lá (~47 ảnh PNG)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ví dụ:
@@ -625,7 +692,9 @@ Ví dụ:
     print(f"  Ảnh     : {os.path.basename(args.image)}")
     print(f"  Output  : {os.path.abspath(args.out)}/")
     print(f"  Tham số : harmonics={HARMONICS}, n_resample={N_RESAMPLE}")
-    print(f"            GLCM: distances={GLCM_DIST}, levels={GLCM_LEVELS}")
+    print(f"            LBP : P={LBP_P}, R={LBP_R}  → {LBP_P + 2} chiều")
+    print(f"            GLCM: distances={GLCM_DIST}, levels={GLCM_LEVELS}  → 20 chiều")
+    print(f"            Texture tổng: {DIM_TEXTURE} chiều")
     print(f"{'═'*62}")
 
     img, contour, gray, mask, leaf_area = preprocess_leaf(args.image)
@@ -634,7 +703,7 @@ Ví dụ:
 
     debug_preprocess(args.image, args.out)
     debug_efd(contour, args.out)
-    debug_glcm(gray, mask, args.out)
+    debug_texture(gray, args.out)           # ← thay thế debug_glcm cũ
     debug_color_moments(img, mask, args.out)
     debug_vein_features(img, mask, leaf_area, args.out)
     debug_summary(args.image, args.out)
@@ -642,12 +711,12 @@ Ví dụ:
     saved = sorted(f for f in os.listdir(args.out) if f.endswith('.png'))
     print(f"\n{'═'*62}")
     print(f"  HOÀN TẤT — {len(saved)} ảnh PNG đã lưu vào '{args.out}/'")
-    print(f"  step1_*   Tiền xử lý   ({sum(1 for f in saved if f.startswith('step1'))} ảnh)")
-    print(f"  step2a_*  EFD           ({sum(1 for f in saved if f.startswith('step2a'))} ảnh)")
-    print(f"  step2b_*  GLCM          ({sum(1 for f in saved if f.startswith('step2b'))} ảnh)")
-    print(f"  step2c_*  Color Moments ({sum(1 for f in saved if f.startswith('step2c'))} ảnh)")
-    print(f"  step2d_*  Gân lá        ({sum(1 for f in saved if f.startswith('step2d'))} ảnh)")
-    print(f"  step3_*   Tổng hợp      ({sum(1 for f in saved if f.startswith('step3'))} ảnh)")
+    print(f"  step1_*    Tiền xử lý    ({sum(1 for f in saved if f.startswith('step1'))} ảnh)")
+    print(f"  step2a_*   EFD            ({sum(1 for f in saved if f.startswith('step2a'))} ảnh)")
+    print(f"  step2b_*   Texture        ({sum(1 for f in saved if f.startswith('step2b'))} ảnh)")
+    print(f"  step2c_*   Color Moments  ({sum(1 for f in saved if f.startswith('step2c'))} ảnh)")
+    print(f"  step2d_*   Gân lá         ({sum(1 for f in saved if f.startswith('step2d'))} ảnh)")
+    print(f"  step3_*    Tổng hợp       ({sum(1 for f in saved if f.startswith('step3'))} ảnh)")
     print(f"{'═'*62}\n")
 
 
