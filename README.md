@@ -1,8 +1,7 @@
-## Cai thu vien cho venv
-
+# Khoi dong lai
+docker compose up -d
 
 # khoi tao container docker
-
 docker-compose up -d
 
 # tai thu vien ket noi postgress

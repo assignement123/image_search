@@ -103,27 +103,78 @@ def _remove_self_intersections(contour: np.ndarray) -> np.ndarray:
 
 
 def _fix_contour_orientation(contour: np.ndarray) -> np.ndarray:
-    contour = np.asarray(contour, np.float64)
-    contour = _remove_self_intersections(contour)
-    if _shoelace_signed_area(contour) > 0:
+    """
+    Chuẩn hóa contour:
+    1. Đảm bảo hướng ngược chiều kim đồng hồ (CCW)
+    2. Điểm bắt đầu là điểm có x nhỏ nhất, nếu trùng thì chọn y nhỏ nhất
+    
+    ✅ KHÔNG remove self-intersections vì sẽ làm thay đổi shape
+    """
+    contour = np.asarray(contour, dtype=np.float64).reshape(-1, 2)
+    
+    # 1. Fix hướng: nếu CW (area < 0) → đảo ngược
+    if _shoelace_signed_area(contour) < 0:
         contour = contour[::-1].copy()
-    idx = int(np.argmin(contour[:, 0]))
+    
+    # 2. Tìm điểm bắt đầu: x nhỏ nhất, nếu trùng thì y nhỏ nhất
+    xs = contour[:, 0]
+    x_min = xs.min()
+    # Tìm tất cả điểm có x gần x_min (tolerance 0.5px)
+    candidates = np.where(xs <= x_min + 0.5)[0]
+    # Trong các candidates, chọn điểm có y nhỏ nhất
+    idx = candidates[np.argmin(contour[candidates, 1])]
+    
+    # Roll để điểm đó thành điểm đầu tiên
     return np.roll(contour, -idx, axis=0)
 
+def efd_distance(v1: np.ndarray, v2: np.ndarray) -> float:
+    """
+    Khoảng cách giữa 2 EFD vectors.
+    Weighted Euclidean: harmonics cao ít quan trọng hơn.
+    """
+    n_harmonics = len(v1) // 4  # 76 / 4 = 19 harmonics
+    
+    # Weight giảm dần theo bậc: 1/sqrt(k)
+    weights = np.repeat(
+        1.0 / np.sqrt(np.arange(2, n_harmonics + 2)),  # k=2,3,...,20
+        4  # 4 coeffs mỗi harmonic
+    )
+    diff = (v1 - v2) * weights
+    return float(np.sqrt((diff**2).sum()))
 
 def _resample_contour(contour: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
-    contour = np.asarray(contour, np.float64)
+    """
+    Resample contour thành n điểm, đều theo độ dài cung.
+    Đảm bảo contour đóng (điểm cuối = điểm đầu).
+    """
+    contour = np.asarray(contour, dtype=np.float64).reshape(-1, 2)
+    
     if len(contour) < 4:
         return contour
-    diffs   = np.diff(contour, axis=0)
-    cumdist = np.concatenate([[0.0], np.cumsum(np.hypot(diffs[:, 0], diffs[:, 1]))])
-    total   = cumdist[-1]
-    if total < 1e-6:
-        return contour
-    t  = np.linspace(0, total, n, endpoint=False)
-    fx = interp1d(cumdist, contour[:, 0])
-    fy = interp1d(cumdist, contour[:, 1])
-    return np.stack([fx(t), fy(t)], axis=1)
+
+    # Đảm bảo contour đóng
+    if np.linalg.norm(contour[-1] - contour[0]) > 1e-6:
+        contour = np.vstack([contour, contour[0]])
+
+    # Tính độ dài cung tích lũy
+    diffs = np.diff(contour, axis=0)
+    dists = np.hypot(diffs[:, 0], diffs[:, 1])
+    cumdist = np.concatenate([[0.0], np.cumsum(dists)])
+    total_length = cumdist[-1]
+
+    if total_length < 1e-8:
+        return contour[:n] if len(contour) > n else contour
+
+    # Resample đều n điểm
+    t = np.linspace(0, total_length, n, endpoint=True)
+    
+    fx = interp1d(cumdist, contour[:, 0], kind='linear')
+    fy = interp1d(cumdist, contour[:, 1], kind='linear')
+    
+    resampled = np.stack([fx(t), fy(t)], axis=1)
+    resampled[-1] = resampled[0]  # Đảm bảo đóng
+    
+    return resampled
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -171,30 +222,75 @@ def preprocess_leaf(image_path) -> tuple:
 # PHẦN 3 — TRÍCH XUẤT ĐẶC TRƯNG
 # ════════════════════════════════════════════════════════════════════
 
+
 def extract_efd(contour: np.ndarray) -> np.ndarray:
     """
-    Elliptic Fourier Descriptors — hình dạng biên lá.
-    Bất biến với translation và scale.
-    Output: 76 chiều  [(HARMONICS-1) × 4]
+    Trích xuất EFD descriptors ĐÚNG CÁCH:
+    
+    ✅ Không dùng normalize=True của pyefd (vì nó normalize sai)
+    ✅ Tự normalize bằng cách:
+       - Chuẩn hóa hướng contour (CCW)
+       - Chuẩn hóa điểm bắt đầu (x_min, y_min)
+       - Resample đều
+       - Tính EFD từ bậc 1 đến HARMONICS
+       - Normalize bằng cách chia cho magnitude của bậc 1
+    
+    Output: 76 chiều = (HARMONICS-1) × 4
     """
-    if contour is None or len(contour) < 4:
-        return np.zeros(DIM_EFD, np.float32)
-
-    contour = np.asarray(contour, np.float64).reshape(-1, 2)
+    contour = np.asarray(contour, dtype=np.float64).reshape(-1, 2)
+    
+    # Chuẩn hóa contour
+    contour = _fix_contour_orientation(contour)
     contour = _resample_contour(contour, N_RESAMPLE)
+    
     if len(contour) < 2 * HARMONICS:
-        return np.zeros(DIM_EFD, np.float32)
-
+        return np.zeros(DIM_EFD, dtype=np.float32)
+    centroid = contour.mean(axis=0)
+    contour = contour - centroid
+    # ✅ Tính EFD KHÔNG normalize
     coeffs = elliptic_fourier_descriptors(
-        contour, order=HARMONICS + 1, normalize=False)
+        contour, 
+        order=HARMONICS+1, 
+        normalize=False  # ← Tự normalize sau
+    )
 
-    a1, b1, c1, d1 = coeffs[1]
-    amp1 = np.sqrt(a1**2 + b1**2 + c1**2 + d1**2)
-    if amp1 > 1e-10:
-        coeffs /= amp1
+    a1, b1, c1, d1 = coeffs[1]  # Bậc 1
+    mag1 = np.sqrt(a1**2 + b1**2 + c1**2 + d1**2)
+    
+    if mag1 < 1e-8:
+        return np.zeros(DIM_EFD, dtype=np.float32)
+    
+    # Normalize tất cả harmonics (trừ DC)
+    coeffs_norm = coeffs[1:] / mag1
+    
+    # ✅ Rotation invariant: align harmonic bậc 1 về hướng chuẩn
+    # Xoay sao cho phase của bậc 1 = 0
+    a1_n, b1_n, c1_n, d1_n = coeffs_norm[0]
+    theta = 0.5 * np.arctan2(2 * (a1_n * b1_n + c1_n * d1_n),
+    (a1_n**2 + c1_n**2 - b1_n**2 - d1_n**2))
+    # Rotation matrix cho từng harmonic
+    result = []
+    for i, (a, b, c, d) in enumerate(coeffs_norm):
+        harmonic_order = i + 1  # Bậc 1, 2, 3, ...
+        angle = harmonic_order * theta
+        
+        # Rotate (a,b) và (c,d)
+        cos_t = np.cos(angle)
+        sin_t = np.sin(angle)
+        
+        a_rot = a * cos_t + b * sin_t
+        b_rot = -a * sin_t + b * cos_t
+        c_rot = c * cos_t + d * sin_t
+        d_rot = -c * sin_t + d * cos_t
+        
+        result.extend([a_rot, b_rot, c_rot, d_rot])
+    
+    # Bỏ bậc 1 (vì đã dùng để normalize rồi, giờ = [1,0,0,0])
+    # Chỉ lấy bậc 2 đến 20
+    final = result[4:]  # Bỏ 4 coeffs đầu (bậc 1)
+    
+    return np.array(final, dtype=np.float32)
 
-    # Bỏ bậc 0 (DC) và bậc 1 (dùng để normalize) → lấy bậc 2 → HARMONICS
-    return coeffs[2:HARMONICS + 1, :].flatten().astype(np.float32)
 GLCM_LEVELS  = 64
 GLCM_DIST    = [1, 3, 5, 7]          # 4 distances → 20 chiều GLCM
 GLCM_ANGLES  = [0, np.pi/4, np.pi/2, 3*np.pi/4]
@@ -360,9 +456,10 @@ def extract_features(image_path) -> dict:
     Ném ValueError nếu ảnh không xử lý được.
     """
     img, contour, gray, mask, leaf_area = preprocess_leaf(image_path)
+    gray_masked = cv2.bitwise_and(gray, gray, mask=mask)
     return {
         "efd":   extract_efd(contour),
-        "texture":  extract_texture_features(gray),
+        "texture":  extract_texture_features(gray_masked),
         "color": extract_color_moments(img, mask),
         "vein":  extract_vein_features(img, mask, leaf_area),
     }

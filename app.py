@@ -6,6 +6,8 @@ import os
 import tempfile
 import subprocess
 from pathlib import Path
+import threading
+import time
 
 # Import feature extraction
 from leaf_extract import extract_features
@@ -28,6 +30,17 @@ DEBUG_STEP_ORDER = [
     ("Gân lá",               "step2d_"),
     ("Tổng hợp",             "step3_"),
 ]
+
+# Global state cho build process
+build_state = {
+    "running": False,
+    "progress": 0,
+    "total": 0,
+    "added": 0,
+    "skipped": 0,
+    "errors": 0,
+    "message": "Chưa bắt đầu"
+}
 
 # ── DB ─────────────────────────────────────────────
 def get_conn():
@@ -64,27 +77,35 @@ def search():
     finally:
         os.unlink(tmp_path)
 
+    # Lấy trọng số từ request
+    w_efd = float(request.form.get("w_efd", 0.4))
+    w_texture = float(request.form.get("w_texture", 0.3))
+    w_color = float(request.form.get("w_color", 0.2))
+    w_vein = float(request.form.get("w_vein", 0.1))
+    top_k = int(request.form.get("top_k", 10))
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    query = """
+    query = f"""
         SELECT filename, species,
         (
-            0.0*(1 - (efd <=> %(efd)s::vector)) +
-            0*(1 - (texture <=> %(tex)s::vector)) +
-            0*(1 - (color <=> %(color)s::vector)) +
-            1*(1 - (vein <=> %(vein)s::vector))
+            {w_efd} * GREATEST(0, 1 - (efd     <=> %(efd)s::vector))   +
+            {w_texture} * GREATEST(0, 1 - (texture <=> %(tex)s::vector))   +
+            {w_color} * GREATEST(0, 1 - (color   <=> %(color)s::vector)) +
+            {w_vein} * GREATEST(0, 1 - (vein    <=> %(vein)s::vector))
         ) AS similarity
         FROM leaf_collection
         ORDER BY similarity DESC
-        LIMIT 40
+        LIMIT %(limit)s
     """
 
     cur.execute(query, {
         "efd": feats["efd"].tolist(),
         "tex": feats["texture"].tolist(),
         "color": feats["color"].tolist(),
-        "vein": feats["vein"].tolist()
+        "vein": feats["vein"].tolist(),
+        "limit": top_k
     })
 
     rows = cur.fetchall()
@@ -97,7 +118,7 @@ def search():
         "image_url": f"/api/image/{r['filename']}"
     } for r in rows]
 
-    return jsonify({"results": results})
+    return jsonify({"results": results, "count": len(results)})
 
 # ── IMAGE ──────────────────────────────────────────
 @app.route("/api/image/<filename>")
@@ -109,6 +130,256 @@ def serve_image(filename):
 
     return jsonify({"error": "Not found"}), 404
 
+# ── SPECIES LIST ───────────────────────────────────
+@app.route("/api/species", methods=["GET"])
+def get_species_list():
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        cur.execute("""
+            SELECT species, COUNT(*) as count
+            FROM leaf_collection
+            WHERE species IS NOT NULL
+            GROUP BY species
+            ORDER BY species
+        """)
+        
+        rows = cur.fetchall()
+        conn.close()
+        
+        return jsonify({"species": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── SPECIES IMAGES ─────────────────────────────────
+@app.route("/api/species/<species_name>", methods=["GET"])
+def get_species_images(species_name):
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 20))
+        offset = (page - 1) * per_page
+        
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Đếm tổng
+        cur.execute(
+            "SELECT COUNT(*) as total FROM leaf_collection WHERE species = %s",
+            (species_name,)
+        )
+        total = cur.fetchone()["total"]
+        
+        # Lấy ảnh phân trang
+        cur.execute("""
+            SELECT filename
+            FROM leaf_collection
+            WHERE species = %s
+            ORDER BY filename
+            LIMIT %s OFFSET %s
+        """, (species_name, per_page, offset))
+        
+        rows = cur.fetchall()
+        conn.close()
+        
+        images = [{
+            "filename": r["filename"],
+            "image_url": f"/api/image/{r['filename']}"
+        } for r in rows]
+        
+        return jsonify({
+            "images": images,
+            "total": total,
+            "page": page,
+            "per_page": per_page
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── STATS ──────────────────────────────────────────
+@app.route("/api/stats", methods=["GET"])
+def get_stats():
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Tổng số ảnh
+        cur.execute("SELECT COUNT(*) as total FROM leaf_collection")
+        total_images = cur.fetchone()["total"]
+        
+        # Tổng số loài
+        cur.execute("SELECT COUNT(DISTINCT species) as total FROM leaf_collection")
+        total_species = cur.fetchone()["total"]
+        
+        # Phân bố theo loài
+        cur.execute("""
+            SELECT species, COUNT(*) as count
+            FROM leaf_collection
+            WHERE species IS NOT NULL
+            GROUP BY species
+            ORDER BY count DESC
+        """)
+        species_dist = [dict(r) for r in cur.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            "total_images": total_images,
+            "total_species": total_species,
+            "species_distribution": species_dist,
+            "extract_params": {
+                "harmonics": 20,
+                "n_resample": 600,
+                "glcm_levels": 64,
+                "dim_efd": 76,
+                "dim_texture": 46,
+                "dim_color": 9,
+                "dim_vein": 9,
+                "background": "white",
+                "created_by": "leaf_extract.py v2.0"
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── BUILD DATABASE ─────────────────────────────────
+@app.route("/api/build", methods=["POST"])
+def build_database():
+    global build_state
+    
+    if build_state["running"]:
+        return jsonify({"error": "Đang có tiến trình build khác"}), 400
+    
+    data = request.get_json()
+    rebuild = data.get("rebuild", False)
+    
+    # Reset state
+    build_state.update({
+        "running": True,
+        "progress": 0,
+        "total": 0,
+        "added": 0,
+        "skipped": 0,
+        "errors": 0,
+        "message": "Đang khởi tạo..."
+    })
+    
+    # Chạy build trong thread riêng
+    thread = threading.Thread(target=run_build_process, args=(rebuild,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({"status": "started"})
+
+@app.route("/api/build/status", methods=["GET"])
+def build_status():
+    return jsonify(build_state)
+
+def run_build_process(rebuild):
+    """
+    ✅ MỖI ẢNH MỘT TRANSACTION RIÊNG - tránh lỗi "transaction aborted"
+    """
+    global build_state
+    
+    try:
+        # Nếu rebuild, xóa toàn bộ dữ liệu
+        if rebuild:
+            build_state["message"] = "Đang xóa dữ liệu cũ..."
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute("TRUNCATE TABLE leaf_collection")
+            conn.commit()
+            conn.close()
+        
+        # Đếm tổng số file
+        IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
+        all_images = []
+        for ext in IMG_EXTS:
+            all_images.extend(LEAVES_DATA_DIR.rglob(f"*{ext}"))
+        
+        build_state["total"] = len(all_images)
+        build_state["message"] = f"Tìm thấy {len(all_images)} ảnh"
+        
+        # ═══════════════════════════════════════════════════════
+        # XỬ LÝ TỪNG ẢNH - MỖI ẢNH MỘT CONNECTION RIÊNG
+        # ═══════════════════════════════════════════════════════
+        for idx, img_path in enumerate(all_images):
+            build_state["progress"] = idx + 1
+            build_state["message"] = f"Đang xử lý {img_path.name}..."
+            
+            filename = img_path.name
+            species = img_path.parent.name
+            
+            # Bỏ prefix số_ nếu có (vd: "1_Phyllostachys_edulis" → "Phyllostachys_edulis")
+            parts = species.split("_", 1)
+            if len(parts) == 2 and parts[0].isdigit():
+                species = parts[1]
+            
+            # ═══ MỞ CONNECTION MỚI CHO TỪNG ẢNH ═══
+            conn = None
+            try:
+                conn = get_conn()
+                cur = conn.cursor()
+                
+                # Check xem đã có chưa (nếu không rebuild)
+                if not rebuild:
+                    cur.execute("SELECT 1 FROM leaf_collection WHERE filename = %s", (filename,))
+                    if cur.fetchone():
+                        build_state["skipped"] += 1
+                        continue
+                
+                # Extract features
+                feats = extract_features(str(img_path))
+                
+                # ✅ Insert vào DB - THÊM image_path
+                cur.execute("""
+                    INSERT INTO leaf_collection (filename, image_path, species, efd, texture, color, vein)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (filename) DO UPDATE SET
+                        image_path = EXCLUDED.image_path,
+                        species = EXCLUDED.species,
+                        efd = EXCLUDED.efd,
+                        texture = EXCLUDED.texture,
+                        color = EXCLUDED.color,
+                        vein = EXCLUDED.vein
+                """, (
+                    filename,
+                    str(img_path),           # ← ✅ THÊM image_path
+                    species,
+                    feats["efd"].tolist(),
+                    feats["texture"].tolist(),
+                    feats["color"].tolist(),
+                    feats["vein"].tolist()
+                ))
+                
+                conn.commit()
+                build_state["added"] += 1
+                
+            except Exception as e:
+                import traceback
+                print(f"\n❌ Error processing {filename}:")
+                print(f"   Species: {species}")
+                print(f"   Path: {img_path}")
+                print(f"   Error: {e}")
+                traceback.print_exc()
+                build_state["errors"] += 1
+                if conn:
+                    conn.rollback()
+            
+            finally:
+                if conn:
+                    conn.close()  # ✅ Đóng connection sau mỗi ảnh
+        
+        build_state["message"] = "✅ Hoàn thành!"
+        
+    except Exception as e:
+        import traceback
+        build_state["message"] = f"❌ Lỗi: {str(e)}"
+        print(f"\n❌ Build error: {e}")
+        traceback.print_exc()
+    
+    finally:
+        build_state["running"] = False
 # ── DEBUG API ──────────────────────────────────────
 @app.route("/api/debug/<filename>", methods=["GET"])
 def debug_image(filename):
@@ -194,7 +465,7 @@ def build_debug_list(stem, pngs):
 
     return result
 
-# ── DEBUG VIEW (KHÔNG CẦN HTML FILE) ──────────────
+# ── DEBUG VIEW ────────────────────────────────────
 @app.route("/debug-view/<filename>")
 def debug_view(filename):
     safe_name = Path(filename).name
@@ -204,15 +475,14 @@ def debug_view(filename):
     <head>
         <title>Debug Viewer</title>
         <style>
-            body {{ font-family: Arial; padding: 20px; }}
-            img {{ margin: 10px 0; border: 1px solid #ccc; }}
+            body {{ font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }}
+            img {{ margin: 10px 0; border: 1px solid #444; max-width: 100%; }}
+            h4 {{ color: #4CAF50; margin-top: 20px; }}
         </style>
     </head>
     <body>
         <h2>🌿 Debug ảnh: {safe_name}</h2>
-
         <div id="debug">⏳ Đang tải...</div>
-
         <script>
             fetch(`/api/debug/{safe_name}`)
                 .then(res => res.json())
@@ -221,16 +491,10 @@ def debug_view(filename):
                         document.getElementById("debug").innerHTML = "❌ " + data.error;
                         return;
                     }}
-
                     let html = "";
-
                     data.images.forEach(img => {{
-                        html += `
-                            <h4>${{img.group}}</h4>
-                            <img src="${{img.url}}" width="300"/>
-                        `;
+                        html += `<h4>${{img.group}}</h4><img src="${{img.url}}" width="600"/>`;
                     }});
-
                     document.getElementById("debug").innerHTML = html;
                 }})
                 .catch(err => {{
