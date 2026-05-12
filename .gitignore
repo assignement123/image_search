@@ -1,43 +1,33 @@
-# Ignore folder dữ liệu lớn
-Leaves/
-Leaves/*
-
-# Ignore virtual environment
-.venv/
-.venv/*
-
-# Ignore các file Python không cần
+# ========================
+# 1. Python Environment & Cache
+# ========================
+myenv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+.pytest_cache/
 
-# macOS
-.DS_Store
-.AppleDouble
-
-# Các folder log/cache lớn khác (nếu có)
-logs/
-cache/
-data/
-*.log
-*.zip
-*.tar.gz
-# Docker & Database
-data/
+# ========================
+# 2. Logs & Debug Files
+# ========================
+leaf_errors.txt
+*debug*.csv
 *.log
 
-# Java / Quarkus / Maven (Dự phòng cho EduGame AI hoặc project Java của bạn)
-target/
-.mvn/
-*.class
+# ========================
+# 3. Datasets & Images
+# ========================
+# Bỏ qua toàn bộ ảnh rác ở thư mục gốc
+/*.jpg
+/*.png
 
-# IDE & OS
-.idea/
+# Tùy chọn: Bỏ comment dòng dưới nếu thư mục leaves_data chứa dataset lớn
+leaves_data/
+
+# ========================
+# 4. OS & IDE Specific (Khuyến nghị)
+# ========================
 .vscode/
+.idea/
 .DS_Store
-
-.venv/
-__pycache__/
-debug_outputs/
-leaves_data
+Thumbs.db

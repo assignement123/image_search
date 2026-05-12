@@ -49,7 +49,7 @@ from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 def connect_db():
     conn = psycopg2.connect(
         host="db",
-        port=5432,      # port docker của bạn
+        port=5432,
         dbname="leaf_db",
         user="admin",
         password="admin"
