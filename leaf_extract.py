@@ -294,6 +294,7 @@ def extract_texture_features(preprocessed_gray: np.ndarray) -> np.ndarray | None
     glcm_feat = extract_glcm(preprocessed_gray, mask)  # 20 chiều
 
     return np.hstack([lbp_feat, glcm_feat]).astype(np.float32)
+
 def extract_color_moments(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """
     Color Moments trong không gian HSV — màu sắc lá.
@@ -349,7 +350,6 @@ def extract_vein_features(img: np.ndarray,
                                bins=8, range=(0, 180), density=True)
     else:
         hist = np.zeros(8)
-
     return np.concatenate([[density], hist]).astype(np.float32)
 
 
