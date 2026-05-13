@@ -20,7 +20,17 @@ def extract_glcm(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     masked = cv2.bitwise_and(gray_img, gray_img, mask=mask)
     eq = cv2.equalizeHist(masked)
     resized = cv2.resize(eq, (256, 256))
+    
     q = np.clip((resized // (256 // GLCM_LEVELS)).astype(np.uint8), 0, GLCM_LEVELS - 1)
+    
     glcm = graycomatrix(q, distances=GLCM_DIST, angles=GLCM_ANGLES, levels=GLCM_LEVELS, symmetric=True, normed=True)
     props = ['contrast', 'homogeneity', 'energy', 'correlation', 'dissimilarity']
-    return np.concatenate([graycoprops(glcm, p).mean(axis=1) for p in props]).astype(np.float32)
+    raw_features = np.concatenate([graycoprops(glcm, p).mean(axis=1) for p in props]).astype(np.float32)
+    
+    norm = np.linalg.norm(raw_features)
+    if norm > 0:
+        normalized_features = raw_features / norm
+    else:
+        normalized_features = raw_features
+        
+    return normalized_features
