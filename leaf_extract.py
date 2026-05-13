@@ -194,78 +194,49 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
         coeffs /= amp1
 
     # Bỏ bậc 0 (DC) và bậc 1 (dùng để normalize) → lấy bậc 2 → HARMONICS
+
     return coeffs[2:HARMONICS + 1, :].flatten().astype(np.float32)
+    
 GLCM_LEVELS  = 64
 GLCM_DIST    = [1, 3, 5, 7]          # 4 distances → 20 chiều GLCM
 GLCM_ANGLES  = [0, np.pi/4, np.pi/2, 3*np.pi/4]
 LBP_P, LBP_R = 24, 3                 # 26 chiều LBP
 
 # ── Hàm tạo mask từ ảnh xám đã preprocess ────────────────────────────────────
+
 def get_leaf_mask(gray_img: np.ndarray) -> np.ndarray:
-    """
-    Tạo mask vùng lá từ ảnh xám (nền đen = 0).
-    preprocess_leaf_image đã dùng canvas đen nên threshold đơn giản là đủ.
-    """
     _, mask = cv2.threshold(gray_img, 5, 255, cv2.THRESH_BINARY)
-    # Morphology để lấp lỗ nhỏ bên trong lá
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    mask   = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    return mask
+    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
 
 # ── LBP ──────────────────────────────────────────────────────────────────────
 def extract_lbp(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    """
-    Local Binary Pattern — cấu trúc vi mô bề mặt lá.
-    - Chỉ tính trên vùng mask (loại bỏ nền đen)
-    - Output: 26 chiều (P+2 bins, normalized)
-    """
     lbp = local_binary_pattern(gray_img, LBP_P, LBP_R, method="uniform")
-
-    # Chỉ lấy pixel thuộc vùng lá
     lbp_masked = lbp[mask > 0]
-
-    hist, _ = np.histogram(
-        lbp_masked,
-        bins=np.arange(0, LBP_P + 3),
-        range=(0, LBP_P + 2)
-    )
+    hist, _ = np.histogram(lbp_masked, bins=np.arange(0, LBP_P + 3), range=(0, LBP_P + 2))
     hist = hist.astype(np.float32)
     hist /= (hist.sum() + 1e-7)
-    return hist  # 26 chiều
+    return hist
 
 # ── GLCM ─────────────────────────────────────────────────────────────────────
 def extract_glcm(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    """
-    Gray Level Co-occurrence Matrix — texture bề mặt lá.
-    - Apply mask trước, equalizeHist để tăng tương phản
-    - Resize về 256×256 cố định → GLCM không phụ thuộc kích thước ảnh
-    - Output: 20 chiều [5 props × 4 distances]
-    """
-    # Che nền, chỉ giữ vùng lá
-    masked  = cv2.bitwise_and(gray_img, gray_img, mask=mask)
-
-    # Cân bằng histogram → phân biệt tốt hơn giữa các mẫu tương tự
-    eq      = cv2.equalizeHist(masked)
+    masked = cv2.bitwise_and(gray_img, gray_img, mask=mask)
+    eq = cv2.equalizeHist(masked)
     resized = cv2.resize(eq, (256, 256))
-
-    # Quantize về GLCM_LEVELS mức
-    q = np.clip(
-        (resized // (256 // GLCM_LEVELS)).astype(np.uint8),
-        0, GLCM_LEVELS - 1
-    )
-
-    glcm = graycomatrix(
-        q,
-        distances=GLCM_DIST,
-        angles=GLCM_ANGLES,
-        levels=GLCM_LEVELS,
-        symmetric=True, normed=True
-    )
-
+    
+    q = np.clip((resized // (256 // GLCM_LEVELS)).astype(np.uint8), 0, GLCM_LEVELS - 1)
+    
+    glcm = graycomatrix(q, distances=GLCM_DIST, angles=GLCM_ANGLES, levels=GLCM_LEVELS, symmetric=True, normed=True)
     props = ['contrast', 'homogeneity', 'energy', 'correlation', 'dissimilarity']
-    return np.concatenate(
-        [graycoprops(glcm, p).mean(axis=1) for p in props]   # mean theo angle, giữ distance
-    ).astype(np.float32)  # 20 chiều
+    raw_features = np.concatenate([graycoprops(glcm, p).mean(axis=1) for p in props]).astype(np.float32)
+    
+    norm = np.linalg.norm(raw_features)
+    if norm > 0:
+        normalized_features = raw_features / norm
+    else:
+        normalized_features = raw_features
+    return normalized_features
 
 # ── Hàm tổng hợp ─────────────────────────────────────────────────────────────
 def extract_texture_features(preprocessed_gray: np.ndarray) -> np.ndarray | None:
