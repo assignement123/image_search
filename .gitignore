@@ -31,3 +31,5 @@ leaves_data/
 .idea/
 .DS_Store
 Thumbs.db
+
+debug_outputs/

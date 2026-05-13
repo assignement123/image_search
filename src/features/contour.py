@@ -7,6 +7,24 @@ from config import HARMONICS, N_RESAMPLE, DIM_EFD
 def _shoelace_signed_area(contour: np.ndarray) -> float:
     x, y = contour[:, 0], contour[:, 1]
     return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(np.roll(x, -1), y))
+def _remove_self_intersections(contour: np.ndarray) -> np.ndarray:
+    pts = contour.astype(np.int32)
+    x0  = pts[:, 0].min() - 5
+    y0  = pts[:, 1].min() - 5
+    w   = int(pts[:, 0].max() - x0) + 6
+    h   = int(pts[:, 1].max() - y0) + 6
+    loc = pts.copy(); loc[:, 0] -= x0; loc[:, 1] -= y0
+    tmp = np.zeros((h, w), np.uint8)
+    cv2.drawContours(tmp, [loc], -1, 255, -1)
+    cnts, _ = cv2.findContours(tmp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not cnts:
+        return contour
+    clean = max(cnts, key=cv2.contourArea).squeeze()
+    if clean.ndim == 1:
+        clean = clean.reshape(-1, 2)
+    clean = clean.astype(np.float64)
+    clean[:, 0] += x0; clean[:, 1] += y0
+    return clean
 
 def _fix_contour_orientation(contour: np.ndarray) -> np.ndarray:
     contour = np.asarray(contour, np.float64)
@@ -66,6 +84,7 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
         return np.zeros(DIM_EFD, np.float32)
 
     contour = np.asarray(contour, np.float64).reshape(-1, 2)
+    contour = _fix_contour_orientation(contour)
     contour = _resample_contour(contour, N_RESAMPLE)
     if len(contour) < 2 * HARMONICS:
         return np.zeros(DIM_EFD, np.float32)
@@ -77,6 +96,7 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
     amp1 = np.sqrt(a1**2 + b1**2 + c1**2 + d1**2)
     if amp1 > 1e-10:
         coeffs /= amp1
+    return coeffs[2:HARMONICS + 1, :].flatten().astype(np.float32) 
 
 def extract_morphology(contour: np.ndarray) -> np.ndarray:
     contour = contour.astype(np.float32)
