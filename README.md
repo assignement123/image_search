@@ -31,3 +31,9 @@ FROM leaf_collection
 WHERE filename = '1278.jpg'
 )
 LIMIT 5;
+
+python src/main.py --test leaves_data/1_Phyllostachys_edulis/1001.jpg --export
+
+http://localhost:8000/templates/index.html
+
+python -m http.server 8000

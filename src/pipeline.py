@@ -1,5 +1,6 @@
 import cv2
-from features.contour import preprocess_leaf, extract_efd, extract_morphology
+from core.preprocess import preprocess_leaf
+from features.contour import extract_efd, extract_morphology
 from features.texture import extract_lbp, extract_glcm
 from features.color import extract_color_moments
 from features.vein import extract_vein_features
