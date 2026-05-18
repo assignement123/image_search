@@ -1,35 +1,22 @@
-# ========================
-# 1. Python Environment & Cache
-# ========================
 myenv/
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
 
-# ========================
-# 2. Logs & Debug Files
-# ========================
 leaf_errors.txt
 *debug*.csv
 *.log
 
-# ========================
-# 3. Datasets & Images
-# ========================
-# Bỏ qua toàn bộ ảnh rác ở thư mục gốc
 /*.jpg
 /*.png
 
-# Tùy chọn: Bỏ comment dòng dưới nếu thư mục leaves_data chứa dataset lớn
 leaves_data/
 
-# ========================
-# 4. OS & IDE Specific (Khuyến nghị)
-# ========================
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
 debug_outputs/
+.env

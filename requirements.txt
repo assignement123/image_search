@@ -1,10 +1,25 @@
-numpy
-opencv-python-headless
-scikit-image
-scipy
-tqdm
-pyefd
-psycopg2-binary
+# --- Web & API ---
 flask
 flask-cors
+python-dotenv
+gunicorn
+requests
+
+# --- Database ---
+psycopg2-binary
+
+# --- Xử lý hình ảnh & Toán học ---
+numpy
+scipy
+opencv-python-headless
+scikit-image
+Pillow
+pyefd
+
+# --- Tiện ích & Trực quan hóa ---
+tqdm
 matplotlib
+
+# --- Machine Learning / Tìm kiếm (Bỏ comment nếu cần) ---
+# scikit-learn
+# faiss-cpu

@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
-from config import LBP_P, LBP_R, GLCM_DIST, GLCM_ANGLES, GLCM_LEVELS
+from src.config import LBP_P, LBP_R, GLCM_DIST, GLCM_ANGLES, GLCM_LEVELS
 
 def get_leaf_mask(gray_img: np.ndarray) -> np.ndarray:
     _, mask = cv2.threshold(gray_img, 5, 255, cv2.THRESH_BINARY)

@@ -1,9 +1,9 @@
 import cv2
-from core.preprocess import preprocess_leaf
-from features.contour import extract_efd, extract_morphology
-from features.texture import extract_lbp, extract_glcm
-from features.color import extract_color_moments
-from features.vein import extract_vein_features
+from src.core.preprocess import preprocess_leaf
+from src.features.contour import extract_efd, extract_morphology
+from src.features.texture import extract_lbp, extract_glcm
+from src.features.color import extract_color_moments
+from src.features.vein import extract_vein_features
 
 def process_single_image(image_path: str) -> dict:
     img, contour, gray, mask, leaf_area = preprocess_leaf(image_path)

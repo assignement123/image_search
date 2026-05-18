@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import os
 import csv
-from pipeline import process_single_image
+from src.pipeline import process_single_image
 
 def save_to_csv(feats, image_path, output_path):
     """Lưu toàn bộ vector vào file CSV"""

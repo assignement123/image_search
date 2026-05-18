@@ -2,10 +2,8 @@ import cv2
 import numpy as np
 from pyefd import elliptic_fourier_descriptors
 from scipy.interpolate import interp1d
-from config import HARMONICS, N_RESAMPLE, DIM_EFD
-
-# Import hàm chuẩn hóa từ module preprocess bạn vừa tách
-from core.preprocess import _fix_contour_orientation 
+from src.config import HARMONICS, N_RESAMPLE, DIM_EFD
+from src.core.preprocess import _fix_contour_orientation
 
 def _resample_contour(contour: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
     contour = np.asarray(contour, np.float64)
@@ -31,7 +29,6 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
         return np.zeros(DIM_EFD, np.float32)
 
     contour = np.asarray(contour, np.float64).reshape(-1, 2)
-    # Vẫn gọi hàm này (đã import từ preprocess) để đảm bảo an toàn nếu module được dùng độc lập
     contour = _fix_contour_orientation(contour) 
     contour = _resample_contour(contour, N_RESAMPLE)
     

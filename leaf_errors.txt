@@ -1,6 +1,0 @@
-1004.jpg	column "glcm" of relation "leaf_collection" does not exist
-LINE 3:         (filename, image_path, efd, glcm, color, vein)
-                                            ^
-
-1027.jpg	current transaction is aborted, commands ignored until end of transaction block
-

@@ -8,23 +8,23 @@ services:
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: leaf_db
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - leaf_db_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  app:                    
-    build: .                   
-    container_name: leaf_app
-    restart: always
-    ports:
-      - "5001:5001"           
-    volumes:
-      - .:/app                
-    environment:
-      - DATABASE_URL=postgresql://admin:admin@db:5432/leaf_db
-    depends_on:
-      - db
+  # app:                    
+  #   build: .                   
+  #   container_name: leaf_app
+  #   restart: always
+  #   ports:
+  #     - "5001:5001"           
+  #   volumes:
+  #     - .:/app                
+  #   environment:
+  #     - DATABASE_URL=postgresql://admin:admin@db:5432/leaf_db
+  #   depends_on:
+  #     - db
 
 volumes:
   leaf_db_data:

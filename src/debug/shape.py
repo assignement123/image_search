@@ -3,8 +3,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from pyefd import elliptic_fourier_descriptors
-from features.contour import _resample_contour
-from config import HARMONICS, N_RESAMPLE
+from src.features.contour import _resample_contour
+from src.config import HARMONICS, N_RESAMPLE
 
 def get_path(out_dir, filename):
     return os.path.join(out_dir, filename)

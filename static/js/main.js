@@ -2,22 +2,18 @@
 import { initLightbox } from './ui.js';
 import { initSearchTab } from './search.js';
 
-// TODO: Bỏ comment các import này khi bạn tách xong các file tương ứng
-// import { loadSpeciesList } from './browse.js';
-// import { loadStats } from './stats.js';
-// import { initManageTab, loadDbBadge } from './manage.js';
+import { loadSpeciesList } from './browse.js';
+import { loadStats } from './stats.js';
+import { initManageTab, loadDbBadge } from './manage.js';
 
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Khởi tạo UI dùng chung
     initTabs();
     initLightbox();
     
-    // 2. Khởi tạo chức năng cho từng tab
     initSearchTab();
     
-    // TODO: Bỏ comment khi hoàn thiện các module
-    // loadDbBadge(); 
-    // initManageTab();
+    loadDbBadge(); 
+    initManageTab();
 });
 
 function initTabs() {
@@ -39,15 +35,13 @@ function initTabs() {
             }
 
             if (tabId === "stats") {
-                // TODO: Bỏ comment gọi hàm khi stats.js đã sẵn sàng
-                // loadStats();
+                loadStats();
             }
             
             if (tabId === "browse") {
                 const speciesList = document.getElementById("species-list");
                 if (speciesList && !speciesList.querySelector(".species-item")) {
-                    // TODO: Bỏ comment gọi hàm khi browse.js đã sẵn sàng
-                    // loadSpeciesList();
+                    loadSpeciesList();
                 }
             }
         });

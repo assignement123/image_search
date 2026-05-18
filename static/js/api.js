@@ -18,3 +18,18 @@ export async function getStats() {
     const res = await fetch("/api/stats");
     return res.json();
 }
+
+export async function buildDatabase(rebuild) {
+    const res = await fetch("/api/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rebuild }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Lỗi khi build DB");
+    return res.json();
+}
+
+export async function getBuildStatus() {
+    const res = await fetch("/api/build/status");
+    return res.json();
+}

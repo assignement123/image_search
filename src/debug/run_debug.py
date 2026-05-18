@@ -3,11 +3,11 @@ import sys
 import argparse
 import cv2
 
-from debug.preprocess import debug_preprocess
-from debug.shape import debug_shape
-from debug.texture import debug_texture
-from debug.color import debug_color_moments
-from debug.vein import debug_vein_features
+from src.debug.preprocess import debug_preprocess
+from src.debug.shape import debug_shape
+from src.debug.texture import debug_texture
+from src.debug.color import debug_color_moments
+from src.debug.vein import debug_vein_features
 
 from pipeline import process_single_image
 from core.preprocess import preprocess_leaf
