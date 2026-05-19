@@ -68,8 +68,6 @@ myenv\Scripts\activate
 
 # Cài đặt các thư viện cần thiết và thư viện kết nối PostgreSQL
 pip install -r requirements.txt
-pip install psycopg2-binary
-
 ```
 
 **🐧 Dành cho Linux / macOS:**
@@ -83,8 +81,6 @@ source myenv/bin/activate
 
 # Cài đặt các thư viện cần thiết và thư viện kết nối PostgreSQL
 pip install -r requirements.txt
-pip install psycopg2-binary
-
 ```
 
 *(Hãy đảm bảo bạn đã cấu hình file `.env` chứa thông tin kết nối DB giống với docker-compose)*.
