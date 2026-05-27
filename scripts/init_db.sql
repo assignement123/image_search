@@ -45,4 +45,28 @@ CREATE INDEX idx_vein_hnsw ON leaf_collection USING hnsw (vein_features vector_l
 CREATE INDEX idx_lbp_hnsw ON leaf_collection USING hnsw (lbp_hist vector_l2_ops);
 CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments vector_l2_ops);
 
+CREATE OR REPLACE FUNCTION chi_square_dist(vec1 vector, vec2 vector)
+RETURNS float8 AS $$
+DECLARE
+    arr1 float8[] := vector_to_float8_array(vec1);
+    arr2 float8[] := vector_to_float8_array(vec2);
+    dim int := array_length(arr1, 1);
+    distance float8 := 0.0;
+    diff float8;
+    sum_val float8;
+BEGIN
+    IF dim != array_length(arr2, 1) THEN
+        RAISE EXCEPTION 'Số chiều của hai vector không khớp nhau!';
+    END IF;
 
+    FOR i IN 1..dim LOOP
+        sum_val := arr1[i] + arr2[i];
+        IF sum_val > 1e-9 THEN
+            diff := arr1[i] - arr2[i];
+            distance := distance + ((diff * diff) / sum_val);
+        END IF;
+    END LOOP;
+
+    RETURN distance;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE STRICT;

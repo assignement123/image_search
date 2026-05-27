@@ -8,11 +8,11 @@ load_dotenv()
 def connect_db():
     """Tạo kết nối đến PostgreSQL"""
     return psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=os.getenv("DB_PORT", 5432),
-        dbname=os.getenv("DB_NAME", "leaf_db"),
-        user=os.getenv("DB_USER", "admin"),
-        password=os.getenv("DB_PASS", "admin")
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASS")
     )
 
 def check_connection():
