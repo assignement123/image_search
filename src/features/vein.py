@@ -5,39 +5,51 @@ import numpy as np
 # ════════════════════════════════════════════════════════════════════
 # GÂN LÁ — MẬT ĐỘ & PHÂN BỐ HƯỚNG GÂN
 # ════════════════════════════════════════════════════════════════════
+def extract_vein_features(img, mask, leaf_area):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-def extract_vein_features(img: np.ndarray,
-                          mask: np.ndarray,
-                          leaf_area: int) -> np.ndarray:
-    """
-    Đặc trưng gân lá — mật độ + phân bố hướng gân.
-    Output: 9 chiều  [density + 8-bin angle histogram]
-    """
-    gray     = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    clahe    = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+    # Erode mask để loại viền lá
+    k_erode = np.ones((15, 15), np.uint8)
+    mask_inner = cv2.erode(mask, k_erode, iterations=1)
+
+    clahe    = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(16, 16))
     enhanced = clahe.apply(gray)
-    smooth   = cv2.bilateralFilter(enhanced, 9, 75, 75)
 
-    canny = cv2.Canny(smooth, 20, 80)
-    sx    = cv2.Sobel(smooth, cv2.CV_64F, 1, 0, ksize=5)
-    sy    = cv2.Sobel(smooth, cv2.CV_64F, 0, 1, ksize=5)
-    smag  = cv2.normalize(np.hypot(sx, sy), None, 0, 255,
-                          cv2.NORM_MINMAX).astype(np.uint8)
+    smooth_full = cv2.GaussianBlur(enhanced, (5, 5), 0)
+    smooth      = cv2.bitwise_and(smooth_full, smooth_full, mask=mask_inner)
 
-    edges = cv2.addWeighted(smag, 0.6, canny, 0.4, 0)
-    vein  = cv2.bitwise_and(edges, edges, mask=mask)
+    # ✅ FIX: Otsu chỉ trên pixels trong mask, không phải toàn ảnh
+    pixels_in_mask = smooth[mask_inner > 0]
+    otsu_thresh, _ = cv2.threshold(pixels_in_mask, 0, 255,
+                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    k3   = np.ones((3, 3), np.uint8)
-    vein = cv2.morphologyEx(vein, cv2.MORPH_OPEN, k3, iterations=1)
-    vein = cv2.dilate(vein, k3, iterations=1)
+    low  = float(otsu_thresh) * 0.3
+    high = float(otsu_thresh) * 0.7
+    canny = cv2.Canny(smooth, low, high)
 
-    density   = float((vein > 0).sum() / leaf_area) if leaf_area > 0 else 0.0
-    angle_map = np.arctan2(sy, sx) * 180.0 / np.pi % 180.0
+    vein = cv2.bitwise_and(canny, canny, mask=mask_inner)
+
+    k2   = np.ones((2, 2), np.uint8)
+    vein = cv2.morphologyEx(vein, cv2.MORPH_CLOSE, k2, iterations=1)
+
+    inner_area = float((mask_inner > 0).sum())
+    density = float((vein > 0).sum() / inner_area) if inner_area > 0 else 0.0
+
+    # Sobel chỉ để tính angle histogram
+    sx = cv2.Sobel(smooth, cv2.CV_64F, 1, 0, ksize=3)
+    sy = cv2.Sobel(smooth, cv2.CV_64F, 0, 1, ksize=3)
+
+    mask_f    = (mask_inner > 0).astype(np.float64)
+    angle_map = np.arctan2(sy * mask_f, sx * mask_f) * 180.0 / np.pi % 180.0
 
     if (vein > 0).any():
         hist, _ = np.histogram(angle_map[vein > 0],
                                bins=8, range=(0, 180), density=True)
     else:
         hist = np.zeros(8)
+    # Thêm vào sau dòng tính otsu_thresh để verify
+    print(f"otsu_thresh = {otsu_thresh:.1f}  |  low={low:.1f}  high={high:.1f}")
+    print(f"canny pixels = {(canny > 0).sum()}  |  inner_area = {inner_area:.0f}")
+    print(f"density = {density:.4f}")
 
     return np.concatenate([[density], hist]).astype(np.float32)
