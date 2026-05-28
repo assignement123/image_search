@@ -86,7 +86,7 @@ docker exec -i leaf_vector_db psql -U admin -d leaf_db < scripts/init_db.sql
 Sau khi DB có schema, chạy ETL để trích xuất vector từ ảnh và lưu vào PostgreSQL:
 
 ```bash
-python src/etl_pipeline.py
+python -m src/etl_pipeline
 ```
 
 ## Tính normalization + gamma
@@ -97,7 +97,7 @@ Sau khi ETL xong, chạy script này để:
 - tự động upsert `gamma` vào bảng `search_feature_gamma`
 
 ```bash
-python src/compute_normalization.py
+python -m src.compute_normalization
 ```
 
 ## Chạy ứng dụng
