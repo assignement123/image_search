@@ -63,7 +63,12 @@ def search():
 
     w_efd = float(request.form.get("w_efd", 0.4))
     w_morphology = float(request.form.get("w_morphology", 0.0))
-    w_texture = float(request.form.get("w_texture", 0.3))
+    w_texture = request.form.get("w_texture")
+    w_texture = float(w_texture) if w_texture is not None else 0.3
+    w_lbp = request.form.get("w_lbp")
+    w_lbp = float(w_lbp) if w_lbp is not None else w_texture * 0.5
+    w_glcm = request.form.get("w_glcm")
+    w_glcm = float(w_glcm) if w_glcm is not None else w_texture * 0.5
     w_color = float(request.form.get("w_color", 0.2))
     w_vein = float(request.form.get("w_vein", 0.1))
     top_k = int(request.form.get("top_k", 10))
@@ -128,14 +133,14 @@ def search():
             query_vectors["vein_features"],
             w_efd,
             w_morphology,
-            w_texture * 0.5,
-            w_texture * 0.5,
+            w_lbp,
+            w_glcm,
             w_color,
             w_vein,
             w_efd,
             w_morphology,
-            w_texture * 0.5,
-            w_texture * 0.5,
+            w_lbp,
+            w_glcm,
             w_color,
             w_vein,
             top_k,

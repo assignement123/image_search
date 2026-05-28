@@ -57,14 +57,17 @@ CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments vector_
 CREATE OR REPLACE FUNCTION chi_square_dist(vec1 vector, vec2 vector)
 RETURNS float8 AS $$
 DECLARE
-    arr1 float8[] := vector_to_float8_array(vec1);
-    arr2 float8[] := vector_to_float8_array(vec2);
+    -- chuyển biểu diễn vector sang text rồi tách các phần tử
+    s1 text := regexp_replace(vec1::text, '[\[\]\s]', '', 'g');
+    s2 text := regexp_replace(vec2::text, '[\[\]\s]', '', 'g');
+    arr1 float8[] := CASE WHEN s1 = '' THEN ARRAY[]::float8[] ELSE string_to_array(s1, ',')::float8[] END;
+    arr2 float8[] := CASE WHEN s2 = '' THEN ARRAY[]::float8[] ELSE string_to_array(s2, ',')::float8[] END;
     dim int := array_length(arr1, 1);
     distance float8 := 0.0;
     diff float8;
     sum_val float8;
 BEGIN
-    IF dim != array_length(arr2, 1) THEN
+    IF dim IS NULL OR dim != array_length(arr2, 1) THEN
         RAISE EXCEPTION 'Số chiều của hai vector không khớp nhau!';
     END IF;
 
