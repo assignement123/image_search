@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS search_feature_gamma (
+    feature_name VARCHAR(50) PRIMARY KEY,
+    gamma        DOUBLE PRECISION NOT NULL,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT INTO meta (key, value) VALUES
     ('harmonics',      '20'),
     ('n_resample',     '600'),
@@ -36,6 +42,9 @@ INSERT INTO meta (key, value) VALUES
     ('dim_color',      '9'),
     ('dim_vein',       '9')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+
+-- Gamma có thể được cập nhật độc lập cho từng feature.
+-- Không lưu weight ở đây để backend vẫn có thể điều chỉnh linh hoạt.
 
 CREATE INDEX idx_efd_hnsw ON leaf_collection USING hnsw (efd_coeffs vector_l2_ops);
 CREATE INDEX idx_morph_hnsw ON leaf_collection USING hnsw (morphology_stats vector_l2_ops);

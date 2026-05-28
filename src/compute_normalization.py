@@ -13,6 +13,43 @@ NUM_SAMPLE_PAIRS = int(os.getenv("NUM_SAMPLE_PAIRS", 3000))
 OUT_FILE = os.path.join(os.path.dirname(__file__), "normalization_params.json")
 
 
+def upsert_gammas_to_db(params):
+    conn = connect_db()
+    try:
+        cur = conn.cursor()
+        rows = []
+        for feature_name in [
+            "efd_coeffs",
+            "morphology_stats",
+            "lbp_hist",
+            "glcm_stats",
+            "color_moments",
+            "vein_features",
+        ]:
+            gamma = params.get(feature_name, {}).get("gamma")
+            if gamma is None:
+                continue
+            rows.append((feature_name, float(gamma)))
+
+        if not rows:
+            print("⚠️ Không có gamma hợp lệ để ghi vào DB.")
+            return
+
+        cur.executemany(
+            """
+            INSERT INTO search_feature_gamma (feature_name, gamma)
+            VALUES (%s, %s)
+            ON CONFLICT (feature_name)
+            DO UPDATE SET gamma = EXCLUDED.gamma, updated_at = CURRENT_TIMESTAMP
+            """,
+            rows,
+        )
+        conn.commit()
+        print(f"✅ Đã lưu {len(rows)} gamma vào DB (search_feature_gamma)")
+    finally:
+        conn.close()
+
+
 def chi_square_distance(v1, v2):
     v1, v2 = np.array(v1, dtype=np.float64), np.array(v2, dtype=np.float64)
     return 0.5 * np.nansum(((v1 - v2) ** 2) / (v1 + v2 + 1e-10))
@@ -200,6 +237,7 @@ def main():
         json.dump({"target_score": TARGET_SCORE, "params": params}, f, indent=2, ensure_ascii=False)
 
     print(f"✅ Đã xuất normalization params → {OUT_FILE}")
+    upsert_gammas_to_db(params)
 
 
 if __name__ == "__main__":

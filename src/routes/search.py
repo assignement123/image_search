@@ -1,7 +1,4 @@
 # src/routes/search.py
-import ast
-import json
-import math
 import os
 import tempfile
 import traceback
@@ -9,25 +6,13 @@ from pathlib import Path
 
 import numpy as np
 import psycopg2.extras
+from pgvector.psycopg2 import register_vector
 from flask import Blueprint, request, jsonify
 
 from src.db.postgres_repo import connect_db
 from src.pipeline import process_single_image
 
 search_bp = Blueprint('search', __name__)
-
-PARAMS_PATH = Path(__file__).resolve().parents[1] / "normalization_params.json"
-
-
-def _load_params() -> dict:
-    if not PARAMS_PATH.exists():
-        return {}
-    try:
-        with open(PARAMS_PATH, "r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        return data.get("params", {})
-    except Exception:
-        return {}
 
 
 def _to_vector(value):
@@ -37,38 +22,23 @@ def _to_vector(value):
         return value.astype(np.float32)
     if isinstance(value, (list, tuple)):
         return np.asarray(value, dtype=np.float32)
-    if isinstance(value, (bytes, bytearray)):
-        try:
-            value = value.decode("utf-8")
-        except Exception:
-            return None
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return None
-        try:
-            parsed = json.loads(value)
-        except Exception:
-            try:
-                parsed = ast.literal_eval(value)
-            except Exception:
-                return None
-        if isinstance(parsed, (list, tuple)):
-            return np.asarray(parsed, dtype=np.float32)
-    return None
+    return value
 
 
-def _euclidean_distance(v1, v2) -> float:
-    return float(np.linalg.norm(v1 - v2))
-
-
-def _chi_square_distance(v1, v2) -> float:
-    return float(0.5 * np.sum(((v1 - v2) ** 2) / (v1 + v2 + 1e-10)))
-
-
-def _score_from_distance(distance: float, gamma: float | None) -> float:
-    gamma = 1.0 if gamma is None else float(gamma)
-    return float(math.exp(-gamma * max(distance, 0.0)))
+def _load_gamma_from_db(cur) -> dict:
+    cur.execute(
+        """
+        SELECT
+            COALESCE(MAX(CASE WHEN feature_name = 'efd_coeffs' THEN gamma END), 1.0) AS efd_coeffs,
+            COALESCE(MAX(CASE WHEN feature_name = 'morphology_stats' THEN gamma END), 1.0) AS morphology_stats,
+            COALESCE(MAX(CASE WHEN feature_name = 'lbp_hist' THEN gamma END), 1.0) AS lbp_hist,
+            COALESCE(MAX(CASE WHEN feature_name = 'glcm_stats' THEN gamma END), 1.0) AS glcm_stats,
+            COALESCE(MAX(CASE WHEN feature_name = 'color_moments' THEN gamma END), 1.0) AS color_moments,
+            COALESCE(MAX(CASE WHEN feature_name = 'vein_features' THEN gamma END), 1.0) AS vein_features
+        FROM search_feature_gamma
+        """
+    )
+    return cur.fetchone() or {}
 
 @search_bp.route("/api/search", methods=["POST"])
 def search():
@@ -100,24 +70,8 @@ def search():
 
     try:
         conn = connect_db()
+        register_vector(conn)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        cur.execute("""
-            SELECT filename, species, efd_coeffs, morphology_stats, lbp_hist, glcm_stats, color_moments, vein_features
-            FROM leaf_collection
-        """)
-
-        rows = cur.fetchall()
-        params = _load_params()
-
-        gamma_map = {
-            "efd_coeffs": params.get("efd_coeffs", {}).get("gamma"),
-            "morphology_stats": params.get("morphology_stats", {}).get("gamma"),
-            "lbp_hist": params.get("lbp_hist", {}).get("gamma"),
-            "glcm_stats": params.get("glcm_stats", {}).get("gamma"),
-            "color_moments": params.get("color_moments", {}).get("gamma"),
-            "vein_features": params.get("vein_features", {}).get("gamma"),
-        }
 
         query_vectors = {
             "efd_coeffs": _to_vector(feats["efd_coeffs"]),
@@ -128,87 +82,72 @@ def search():
             "vein_features": _to_vector(feats["vein_features"]),
         }
 
-        scored_rows = []
-        for row in rows:
-            row_vectors = {
-                "efd_coeffs": _to_vector(row.get("efd_coeffs")),
-                "morphology_stats": _to_vector(row.get("morphology_stats")),
-                "lbp_hist": _to_vector(row.get("lbp_hist")),
-                "glcm_stats": _to_vector(row.get("glcm_stats")),
-                "color_moments": _to_vector(row.get("color_moments")),
-                "vein_features": _to_vector(row.get("vein_features")),
-            }
+        sql = """
+            WITH q AS (
+                SELECT
+                    %s::vector AS q_efd,
+                    %s::vector AS q_morphology,
+                    %s::vector AS q_lbp,
+                    %s::vector AS q_glcm,
+                    %s::vector AS q_color,
+                    %s::vector AS q_vein
+            ), gamma AS (
+                SELECT
+                    COALESCE(MAX(CASE WHEN feature_name = 'efd_coeffs' THEN gamma END), 1.0) AS efd_gamma,
+                    COALESCE(MAX(CASE WHEN feature_name = 'morphology_stats' THEN gamma END), 1.0) AS morphology_gamma,
+                    COALESCE(MAX(CASE WHEN feature_name = 'lbp_hist' THEN gamma END), 1.0) AS lbp_gamma,
+                    COALESCE(MAX(CASE WHEN feature_name = 'glcm_stats' THEN gamma END), 1.0) AS glcm_gamma,
+                    COALESCE(MAX(CASE WHEN feature_name = 'color_moments' THEN gamma END), 1.0) AS color_gamma,
+                    COALESCE(MAX(CASE WHEN feature_name = 'vein_features' THEN gamma END), 1.0) AS vein_gamma
+                FROM search_feature_gamma
+            )
+            SELECT
+                lc.filename,
+                lc.species,
+                (
+                    (%s * exp(-g.efd_gamma * (lc.efd_coeffs <-> q.q_efd))) +
+                    (%s * exp(-g.morphology_gamma * (lc.morphology_stats <-> q.q_morphology))) +
+                    (%s * exp(-g.lbp_gamma * chi_square_dist(lc.lbp_hist, q.q_lbp))) +
+                    (%s * exp(-g.glcm_gamma * (lc.glcm_stats <-> q.q_glcm))) +
+                    (%s * exp(-g.color_gamma * (lc.color_moments <-> q.q_color))) +
+                    (%s * exp(-g.vein_gamma * (lc.vein_features <-> q.q_vein)))
+                ) / NULLIF((%s + %s + %s + %s + %s + %s), 0) AS similarity
+            FROM leaf_collection lc
+            CROSS JOIN q
+            CROSS JOIN gamma g
+            ORDER BY similarity DESC
+            LIMIT %s
+        """
 
-            feature_scores = {}
-            if row_vectors["efd_coeffs"] is not None and query_vectors["efd_coeffs"] is not None:
-                d = _euclidean_distance(row_vectors["efd_coeffs"], query_vectors["efd_coeffs"])
-                feature_scores["efd"] = _score_from_distance(d, gamma_map["efd_coeffs"])
+        params = [
+            query_vectors["efd_coeffs"],
+            query_vectors["morphology_stats"],
+            query_vectors["lbp_hist"],
+            query_vectors["glcm_stats"],
+            query_vectors["color_moments"],
+            query_vectors["vein_features"],
+            w_efd,
+            w_morphology,
+            w_texture * 0.5,
+            w_texture * 0.5,
+            w_color,
+            w_vein,
+            w_efd,
+            w_morphology,
+            w_texture * 0.5,
+            w_texture * 0.5,
+            w_color,
+            w_vein,
+            top_k,
+        ]
 
-            if row_vectors["morphology_stats"] is not None and query_vectors["morphology_stats"] is not None:
-                d = _euclidean_distance(row_vectors["morphology_stats"], query_vectors["morphology_stats"])
-                feature_scores["morphology"] = _score_from_distance(d, gamma_map["morphology_stats"])
-
-            if row_vectors["lbp_hist"] is not None and query_vectors["lbp_hist"] is not None:
-                d = _chi_square_distance(row_vectors["lbp_hist"], query_vectors["lbp_hist"])
-                feature_scores["lbp"] = _score_from_distance(d, gamma_map["lbp_hist"])
-
-            if row_vectors["glcm_stats"] is not None and query_vectors["glcm_stats"] is not None:
-                d = _euclidean_distance(row_vectors["glcm_stats"], query_vectors["glcm_stats"])
-                feature_scores["glcm"] = _score_from_distance(d, gamma_map["glcm_stats"])
-
-            if row_vectors["color_moments"] is not None and query_vectors["color_moments"] is not None:
-                d = _euclidean_distance(row_vectors["color_moments"], query_vectors["color_moments"])
-                feature_scores["color"] = _score_from_distance(d, gamma_map["color_moments"])
-
-            if row_vectors["vein_features"] is not None and query_vectors["vein_features"] is not None:
-                d = _euclidean_distance(row_vectors["vein_features"], query_vectors["vein_features"])
-                feature_scores["vein"] = _score_from_distance(d, gamma_map["vein_features"])
-
-            total_similarity = 0.0
-            total_weight = 0.0
-
-            if "efd" in feature_scores:
-                total_similarity += w_efd * feature_scores["efd"]
-                total_weight += w_efd
-
-            if "morphology" in feature_scores:
-                total_similarity += w_morphology * feature_scores["morphology"]
-                total_weight += w_morphology
-
-            if "lbp" in feature_scores:
-                total_similarity += (w_texture * 0.5) * feature_scores["lbp"]
-                total_weight += (w_texture * 0.5)
-
-            if "glcm" in feature_scores:
-                total_similarity += (w_texture * 0.5) * feature_scores["glcm"]
-                total_weight += (w_texture * 0.5)
-
-            if "color" in feature_scores:
-                total_similarity += w_color * feature_scores["color"]
-                total_weight += w_color
-
-            if "vein" in feature_scores:
-                total_similarity += w_vein * feature_scores["vein"]
-                total_weight += w_vein
-
-            if total_weight > 0:
-                similarity = total_similarity / total_weight
-            else:
-                similarity = 0.0
-
-            scored_rows.append({
-                "filename": row["filename"],
-                "species": row["species"],
-                "similarity": similarity,
-            })
-
-        scored_rows.sort(key=lambda item: item["similarity"], reverse=True)
-        rows = scored_rows[:top_k]
+        cur.execute(sql, params)
+        rows = cur.fetchall()
 
         results = [{
             "filename": r["filename"],
             "species": r["species"],
-            "similarity": round(float(r["similarity"]) * 100, 2),
+            "similarity": round(float(r["similarity"]) * 100, 2) if r["similarity"] is not None else 0.0,
             "image_url": f"/api/image/{r['filename']}"
         } for r in rows]
 
