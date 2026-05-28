@@ -7,7 +7,6 @@ import numpy as np
 from collections import defaultdict
 from src.db.postgres_repo import connect_db
 
-# Cấu hình
 TARGET_SCORE = float(os.getenv("TARGET_SCORE", 0.2))
 NUM_SAMPLE_PAIRS = int(os.getenv("NUM_SAMPLE_PAIRS", 3000))
 OUT_FILE = os.path.join(os.path.dirname(__file__), "normalization_params.json")
