@@ -1,3 +1,4 @@
+
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -8,23 +9,29 @@ services:
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: leaf_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - leaf_db_data:/var/lib/postgresql/data
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql   ần
 
-  # app:                    
-  #   build: .                   
-  #   container_name: leaf_app
-  #   restart: always
-  #   ports:
-  #     - "5001:5001"           
-  #   volumes:
-  #     - .:/app                
-  #   environment:
-  #     - DATABASE_URL=postgresql://admin:admin@db:5432/leaf_db
-  #   depends_on:
-  #     - db
+  app:
+    build: .
+    container_name: leaf_app
+    restart: always
+    ports:
+      - "5001:5001"
+    volumes:
+      - .:/app
+      - ./leaves_data:/app/leaves_data
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: leaf_db
+      DB_USER: admin
+      DB_PASS: admin
+      DATA_DIR: ./leaves_data
+    depends_on:
+      - db
 
 volumes:
   leaf_db_data:
