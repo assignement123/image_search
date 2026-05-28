@@ -9,11 +9,11 @@ from src.debug.texture import debug_texture
 from src.debug.color import debug_color_moments
 from src.debug.vein import debug_vein_features
 
-from pipeline import process_single_image
 from core.preprocess import preprocess_leaf
 
+
 def main():
-    ap = argparse.ArgumentParser(description="Công cụ Debug Trích xuất Đặc trưng (Modular)")
+    ap = argparse.ArgumentParser(description="Công cụ Debug Trích xuất Đặc trưng")
     ap.add_argument("image", help="Ảnh lá cần debug")
     ap.add_argument("--out", default="debug_out", help="Thư mục lưu ảnh debug")
     args = ap.parse_args()
@@ -39,6 +39,7 @@ def main():
     print(f"\n{'═'*60}")
     print(f"  HOÀN TẤT — Kiểm tra thư mục: {args.out}/")
     print(f"{'═'*60}\n")
+
 
 if __name__ == "__main__":
     main()

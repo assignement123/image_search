@@ -2,35 +2,102 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from pyefd import elliptic_fourier_descriptors
-from src.features.contour import _resample_contour
-from src.config import HARMONICS, N_RESAMPLE
 
-def get_path(out_dir, filename):
+
+def _p(out_dir: str, filename: str) -> str:
     return os.path.join(out_dir, filename)
 
-def debug_shape(contour: np.ndarray, out_dir: str) -> None:
-    print("\n[DEBUG SHAPE] EFD & Hình thái học")
-    contour = np.asarray(contour, np.float64).reshape(-1, 2)
 
-    rs = _resample_contour(contour, N_RESAMPLE)
+def _save(title: str, img: np.ndarray, path: str, cmap: str = 'gray') -> None:
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot(rs[:, 0], rs[:, 1], 'g-', lw=1.5)
-    ax.plot(rs[0, 0], rs[0, 1], 'ko', ms=10, label='Start Point')
-    ax.set_title(f"01 — Resample ({N_RESAMPLE} pts)", fontweight='bold')
-    ax.set_aspect('equal'); ax.invert_yaxis(); ax.grid(alpha=0.3)
-    ax.legend()
-    plt.savefig(get_path(out_dir, "shape_01_resampled.png"), dpi=110)
+    if img.ndim == 3:
+        ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    else:
+        ax.imshow(img, cmap=cmap)
+    ax.set_title(title, fontsize=10, fontweight='bold', pad=8)
+    ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(path, dpi=110, bbox_inches='tight')
     plt.close()
-    print("    → shape_01_resampled.png")
+    print(f"    → {os.path.basename(path)}")
 
-    coeffs_norm = elliptic_fourier_descriptors(rs, order=HARMONICS + 1, normalize=True)
-    efd_vec = coeffs_norm[2:HARMONICS + 1, :].flatten().astype(np.float32)
 
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.bar(range(len(efd_vec)), efd_vec, color='coral', edgecolor='white', alpha=0.85)
-    ax.set_title(f"Vector EFD ({len(efd_vec)} chiều) lưu vào DB", fontweight='bold')
-    ax.grid(axis='y', alpha=0.3)
-    plt.savefig(get_path(out_dir, "shape_02_vector.png"), dpi=110)
+def debug_preprocess(
+    image_path: str,
+    img: np.ndarray,
+    gray: np.ndarray,
+    mask: np.ndarray,
+    contour: np.ndarray,
+    out_dir: str,
+) -> None:
+    print("\n[BƯỚC 1] Tiền xử lý ảnh (nền trắng)")
+
+    # 00 — Ảnh gốc
+    _save("00 — Ảnh gốc", img, _p(out_dir, "step1_00_original.png"))
+
+    # 01 — Grayscale
+    _save("01 — Ảnh xám (Grayscale)", gray, _p(out_dir, "step1_01_gray.png"))
+
+    # 02 — Histogram + ngưỡng Otsu
+    thresh_val, _ = cv2.threshold(
+        gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.hist(gray.flatten(), bins=64, range=(0, 255),
+            color='steelblue', alpha=0.8, edgecolor='white')
+    ax.axvline(thresh_val, color='red', lw=2.5, ls='--',
+               label=f'Ngưỡng Otsu = {thresh_val:.0f}')
+    ymax = ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 1000
+    ax.fill_betweenx([0, ymax], 0, thresh_val,
+                     alpha=0.12, color='orange', label='Vùng lá (< ngưỡng)')
+    ax.set_title("02 — Histogram & ngưỡng Otsu", fontweight='bold')
+    ax.set_xlabel('Mức xám'); ax.set_ylabel('Số pixel')
+    ax.legend(); ax.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(_p(out_dir, "step1_02_otsu_threshold.png"), dpi=110, bbox_inches='tight')
     plt.close()
-    print("    → shape_02_vector.png")
+    print(f"    → step1_02_otsu_threshold.png  (ngưỡng={thresh_val:.0f})")
+
+    # 03 — Binary INV
+    _, binary = cv2.threshold(
+        gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    _save("03 — Nhị phân Otsu INV (lá=trắng, nền=đen)",
+          binary, _p(out_dir, "step1_03_binary_inv.png"))
+
+    # 04 — MORPH_OPEN
+    kernel = np.ones((5, 5), np.uint8)
+    opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+    _save("04 — MORPH_OPEN (xoá nhiễu nhỏ)", opened,
+          _p(out_dir, "step1_04_morph_open.png"))
+
+    # 05 — MORPH_CLOSE
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+    _save("05 — MORPH_CLOSE (lấp lỗ hổng)", closed,
+          _p(out_dir, "step1_05_morph_close.png"))
+
+    # 06 — Contour trên ảnh gốc  (dùng contour từ main, không gọi lại preprocess_leaf)
+    leaf_area = int((mask > 0).sum())
+    contour_vis = cv2.drawContours(
+        img.copy(), [contour.astype(np.int32)], -1, (0, 255, 0), 2)
+    _save(f"06 — Contour lớn nhất ({len(contour)} điểm  |  CCW)",
+          contour_vis, _p(out_dir, "step1_06_contour.png"))
+
+    # 07 — Mask
+    _save(f"07 — Mask lá (diện tích = {leaf_area:,} px)",
+          mask, _p(out_dir, "step1_07_mask.png"))
+
+    # 08 — Mask + vùng cắt
+    leaf_cut = cv2.bitwise_and(img, img, mask=mask)
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].imshow(mask, cmap='gray')
+    axes[0].set_title(f"Mask  ({leaf_area:,} px)", fontweight='bold')
+    axes[0].axis('off')
+    axes[1].imshow(cv2.cvtColor(leaf_cut, cv2.COLOR_BGR2RGB))
+    axes[1].set_title("Vùng lá sau cắt nền", fontweight='bold')
+    axes[1].axis('off')
+    plt.suptitle("08 — Mask & vùng lá đã cắt", fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(_p(out_dir, "step1_08_mask_and_crop.png"), dpi=110, bbox_inches='tight')
+    plt.close()
+    print("    → step1_08_mask_and_crop.png")
+
+    print(f"  → Tổng: 9 ảnh (step1_00 ÷ step1_08)")
