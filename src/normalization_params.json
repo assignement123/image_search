@@ -1,0 +1,33 @@
+{
+  "target_score": 0.2,
+  "params": {
+    "efd_coeffs": {
+      "method": "l2",
+      "gamma": null
+    },
+    "morphology_stats": {
+      "method": "z_l2",
+      "mean": null,
+      "std": null,
+      "gamma": null
+    },
+    "lbp_hist": {
+      "method": "l1",
+      "gamma": null
+    },
+    "glcm_stats": {
+      "method": "l2",
+      "gamma": null
+    },
+    "color_moments": {
+      "method": "z_l2",
+      "mean": null,
+      "std": null,
+      "gamma": null
+    },
+    "vein_features": {
+      "method": "l1_then_l2",
+      "gamma": null
+    }
+  }
+}
