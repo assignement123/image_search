@@ -404,7 +404,7 @@ body > * { position: relative; z-index: 1; }
 .kpi-label { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
 
 .chart-card { padding: 24px; }
-.chart-wrapper { height: 320px; position: relative; }
+.chart-wrapper { height: auto; position: relative; overflow: visible; }
 
 .params-card { padding: 24px; }
 .params-grid {

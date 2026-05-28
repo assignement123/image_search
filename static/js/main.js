@@ -44,6 +44,8 @@ function initTabs() {
                     loadSpeciesList();
                 }
             }
+
+            // "overview" tab is static — no data loading required
         });
     });
 }

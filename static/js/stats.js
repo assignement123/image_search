@@ -2,6 +2,7 @@ import { getStats } from './api.js';
 import { formatSpecies } from './ui.js';
 
 let speciesChart = null;
+
 export async function loadStats() {
     try {
         const data = await getStats();
@@ -10,11 +11,14 @@ export async function loadStats() {
         animateCount("kpi-total", 0, data.total_images, 800);
         animateCount("kpi-species", 0, data.total_species, 600);
 
-        const efd = parseInt(data.extract_params?.dim_efd || 76);
-        const tex = parseInt(data.extract_params?.dim_texture || 46);
-        const col = parseInt(data.extract_params?.dim_color || 9);
-        const vin = parseInt(data.extract_params?.dim_vein || 9);
-        document.getElementById("kpi-dim").textContent = efd + tex + col + vin;
+        // 2C — Tính đúng tổng chiều vector từ key mới
+        const efd   = parseInt(data.extract_params?.dim_efd        || 76);
+        const morph = parseInt(data.extract_params?.dim_morphology  || 3);
+        const lbp   = parseInt(data.extract_params?.dim_lbp         || 26);
+        const glcm  = parseInt(data.extract_params?.dim_glcm        || 20);
+        const col   = parseInt(data.extract_params?.dim_color       || 9);
+        const vin   = parseInt(data.extract_params?.dim_vein        || 9);
+        document.getElementById("kpi-dim").textContent = efd + morph + lbp + glcm + col + vin;
 
         renderSpeciesChart(data.species_distribution);
         renderParams(data.extract_params);
@@ -38,14 +42,31 @@ function animateCount(id, from, to, duration) {
 
 function renderSpeciesChart(dist) {
     if (!dist || dist.length === 0) return;
-    const ctx = document.getElementById("species-chart").getContext("2d");
-    const top = dist.slice(0, 20);
-    
-    const labels = top.map((d) => formatSpecies(d.species));
-    const values = top.map((d) => d.count);
-    const colors = labels.map((_, i) => `hsla(${(i * 137.5) % 360}, 65%, 55%, 0.8)`);
 
-    if (speciesChart) speciesChart.destroy();
+    // Tính chiều cao: mỗi loài 32px + padding
+    const rowHeight = 32;
+    const chartHeight = dist.length * rowHeight + 80;
+
+    const canvas = document.getElementById("species-chart");
+    const wrapper = canvas.parentElement;
+
+    // Set kích thước wrapper và canvas trước khi Chart.js init
+    wrapper.style.height = chartHeight + "px";
+    canvas.style.width  = "100%";
+    canvas.style.height = chartHeight + "px";
+    canvas.height = chartHeight;
+
+    const ctx = canvas.getContext("2d");
+
+    const labels = dist.map((d) => formatSpecies(d.species));
+    const values = dist.map((d) => d.count);
+    const colors = labels.map((_, i) => `hsla(${(i * 137.5) % 360}, 65%, 58%, 0.85)`);
+    const borderColors = labels.map((_, i) => `hsla(${(i * 137.5) % 360}, 75%, 65%, 1)`);
+
+    if (speciesChart) {
+        speciesChart.destroy();
+        speciesChart = null;
+    }
 
     speciesChart = new Chart(ctx, {
         type: "bar",
@@ -55,18 +76,55 @@ function renderSpeciesChart(dist) {
                 label: "Số ảnh",
                 data: values,
                 backgroundColor: colors,
-                borderColor: colors.map((c) => c.replace("0.8", "1")),
-                borderWidth: 1,
-                borderRadius: 5,
+                borderColor: borderColors,
+                borderWidth: 1.5,
+                borderRadius: 4,
+                borderSkipped: false,
             }],
         },
         options: {
-            responsive: true,
+            indexAxis: 'y',
+            responsive: false,          // tắt responsive để giữ kích thước đặt
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            animation: { duration: 600, easing: 'easeOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15,20,35,0.95)',
+                    borderColor: 'rgba(255,255,255,0.12)',
+                    borderWidth: 1,
+                    titleColor: '#e8edf5',
+                    bodyColor: '#a0aec0',
+                    padding: 10,
+                    callbacks: {
+                        title: (items) => `🌿 ${items[0].label}`,
+                        label: (item) => `  Số ảnh: ${item.parsed.x}`,
+                    }
+                }
+            },
             scales: {
-                x: { ticks: { color: "#7a8499", font: { size: 11 }, maxRotation: 45 } },
-                y: { ticks: { color: "#7a8499", font: { size: 11 } }, beginAtZero: true },
+                y: {
+                    ticks: {
+                        color: "#9ab0c8",
+                        font: { size: 12, family: "'Inter', sans-serif" },
+                        padding: 6,
+                    },
+                    grid: { display: false },
+                    border: { color: 'rgba(255,255,255,0.06)' },
+                },
+                x: {
+                    ticks: {
+                        color: "#5a6a80",
+                        font: { size: 11 },
+                        stepSize: 10,
+                    },
+                    grid: {
+                        color: 'rgba(255,255,255,0.05)',
+                        drawBorder: false,
+                    },
+                    border: { display: false },
+                    beginAtZero: true,
+                },
             },
         },
     });
@@ -79,10 +137,17 @@ function renderParams(params) {
         return;
     }
 
+    // 2B — labelMap với key mới đầy đủ
     const labelMap = {
-        harmonics: "Harmonics (EFD)", n_resample: "N Resample", glcm_levels: "GLCM Levels",
-        dim_efd: "Chiều EFD", dim_texture: "Chiều Texture", dim_color: "Chiều Color",
-        dim_vein: "Chiều Vein", background: "Nền ảnh", created_by: "Script tạo",
+        harmonics:      "Harmonics (EFD)",
+        n_resample:     "N Resample (EFD)",
+        glcm_levels:    "GLCM Levels",
+        dim_efd:        "Chiều EFD (efd_coeffs)",
+        dim_morphology: "Chiều Morphology (morphology_stats)",
+        dim_lbp:        "Chiều LBP (lbp_hist)",
+        dim_glcm:       "Chiều GLCM (glcm_stats)",
+        dim_color:      "Chiều Color (color_moments)",
+        dim_vein:       "Chiều Vein (vein_features)",
     };
 
     grid.innerHTML = "";
