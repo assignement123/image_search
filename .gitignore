@@ -20,3 +20,5 @@ Thumbs.db
 
 debug_outputs/
 .env
+
+/src/search_rework_plan.md

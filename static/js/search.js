@@ -82,7 +82,9 @@ function initDropzone() {
 function initWeightSliders() {
     const sliders = [
         { id: "w-efd", valId: "v-efd" },
-        { id: "w-texture", valId: "v-texture" },
+        { id: "w-morphology", valId: "v-morphology" },
+        { id: "w-lbp", valId: "v-lbp" },
+        { id: "w-glcm", valId: "v-glcm" },
         { id: "w-color", valId: "v-color" },
         { id: "w-vein", valId: "v-vein" },
     ];
@@ -101,7 +103,9 @@ function initWeightSliders() {
 function getWeights() {
     return {
         w_efd: parseFloat(document.getElementById("w-efd").value) / 100,
-        w_texture: parseFloat(document.getElementById("w-texture").value) / 100,
+        w_morphology: parseFloat(document.getElementById("w-morphology").value) / 100,
+        w_lbp: parseFloat(document.getElementById("w-lbp").value) / 100,
+        w_glcm: parseFloat(document.getElementById("w-glcm").value) / 100,
         w_color: parseFloat(document.getElementById("w-color").value) / 100,
         w_vein: parseFloat(document.getElementById("w-vein").value) / 100,
         top_k: document.getElementById("top-k").value,
@@ -131,7 +135,9 @@ async function runSearch() {
     formData.append("file", selectedFile);
     formData.append("top_k", weights.top_k);
     formData.append("w_efd", weights.w_efd);
-    formData.append("w_texture", weights.w_texture);
+    formData.append("w_morphology", weights.w_morphology);
+    formData.append("w_lbp", weights.w_lbp);
+    formData.append("w_glcm", weights.w_glcm);
     formData.append("w_color", weights.w_color);
     formData.append("w_vein", weights.w_vein);
 
