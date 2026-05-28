@@ -1,103 +1,120 @@
+# shape.py
 import os
-import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from pyefd import elliptic_fourier_descriptors
+from src.features.contour import _resample_contour, extract_efd
+from src.config import HARMONICS, N_RESAMPLE, DIM_EFD
 
 
 def _p(out_dir: str, filename: str) -> str:
     return os.path.join(out_dir, filename)
 
 
-def _save(title: str, img: np.ndarray, path: str, cmap: str = 'gray') -> None:
+def debug_shape(contour: np.ndarray, out_dir: str) -> None:
+    print("\n[BƯỚC 2A] EFD — Hình dạng biên lá")
+
+    contour = np.asarray(contour, np.float64).reshape(-1, 2)
+
+    # 00 - Contour gốc
     fig, ax = plt.subplots(figsize=(5, 5))
-    if img.ndim == 3:
-        ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    else:
-        ax.imshow(img, cmap=cmap)
-    ax.set_title(title, fontsize=10, fontweight='bold', pad=8)
-    ax.axis('off')
+    ax.plot(contour[:, 0], contour[:, 1], 'b-', lw=1.5)
+    ax.plot(contour[0, 0], contour[0, 1], 'ro', ms=8)
+    ax.set_title(f"00 — Contour gốc ({len(contour)} điểm)", fontweight='bold')
+    ax.set_aspect('equal'); ax.invert_yaxis(); ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(path, dpi=110, bbox_inches='tight')
+    plt.savefig(_p(out_dir, "shape_00_contour_raw.png"), dpi=110)
     plt.close()
-    print(f"    → {os.path.basename(path)}")
+    print("    → shape_00_contour_raw.png")
 
-
-def debug_preprocess(
-    image_path: str,
-    img: np.ndarray,
-    gray: np.ndarray,
-    mask: np.ndarray,
-    contour: np.ndarray,
-    out_dir: str,
-) -> None:
-    print("\n[BƯỚC 1] Tiền xử lý ảnh (nền trắng)")
-
-    # 00 — Ảnh gốc
-    _save("00 — Ảnh gốc", img, _p(out_dir, "step1_00_original.png"))
-
-    # 01 — Grayscale
-    _save("01 — Ảnh xám (Grayscale)", gray, _p(out_dir, "step1_01_gray.png"))
-
-    # 02 — Histogram + ngưỡng Otsu
-    thresh_val, _ = cv2.threshold(
-        gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.hist(gray.flatten(), bins=64, range=(0, 255),
-            color='steelblue', alpha=0.8, edgecolor='white')
-    ax.axvline(thresh_val, color='red', lw=2.5, ls='--',
-               label=f'Ngưỡng Otsu = {thresh_val:.0f}')
-    ymax = ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 1000
-    ax.fill_betweenx([0, ymax], 0, thresh_val,
-                     alpha=0.12, color='orange', label='Vùng lá (< ngưỡng)')
-    ax.set_title("02 — Histogram & ngưỡng Otsu", fontweight='bold')
-    ax.set_xlabel('Mức xám'); ax.set_ylabel('Số pixel')
-    ax.legend(); ax.grid(axis='y', alpha=0.3)
+    # 01 - Resample contour
+    rs = _resample_contour(contour, N_RESAMPLE)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.plot(rs[:, 0], rs[:, 1], 'g-', lw=1.5)
+    ax.scatter(rs[::30, 0], rs[::30, 1], c='red', s=20)
+    ax.set_title(f"01 — Resample ({N_RESAMPLE} điểm)", fontweight='bold')
+    ax.set_aspect('equal'); ax.invert_yaxis(); ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(_p(out_dir, "step1_02_otsu_threshold.png"), dpi=110, bbox_inches='tight')
+    plt.savefig(_p(out_dir, "shape_01_resampled.png"), dpi=110)
     plt.close()
-    print(f"    → step1_02_otsu_threshold.png  (ngưỡng={thresh_val:.0f})")
+    print("    → shape_01_resampled.png")
 
-    # 03 — Binary INV
-    _, binary = cv2.threshold(
-        gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    _save("03 — Nhị phân Otsu INV (lá=trắng, nền=đen)",
-          binary, _p(out_dir, "step1_03_binary_inv.png"))
+    # Tính EFD — y nguyên từ leaf_debug.py gốc
+    coeffs = elliptic_fourier_descriptors(rs, order=HARMONICS, normalize=False)
+    A0 = rs[:, 0].mean()
+    C0 = rs[:, 1].mean()
+    t  = np.linspace(0, 1, N_RESAMPLE)
 
-    # 04 — MORPH_OPEN
-    kernel = np.ones((5, 5), np.uint8)
-    opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
-    _save("04 — MORPH_OPEN (xoá nhiễu nhỏ)", opened,
-          _p(out_dir, "step1_04_morph_open.png"))
+    def reconstruct(n_max):
+        x = np.full_like(t, A0)
+        y = np.full_like(t, C0)
+        for n in range(n_max):
+            an, bn, cn, dn = coeffs[n]
+            k = n + 1
+            x += an * np.cos(2 * np.pi * k * t) + bn * np.sin(2 * np.pi * k * t)
+            y += cn * np.cos(2 * np.pi * k * t) + dn * np.sin(2 * np.pi * k * t)
+        return x, y
 
-    # 05 — MORPH_CLOSE
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
-    _save("05 — MORPH_CLOSE (lấp lỗ hổng)", closed,
-          _p(out_dir, "step1_05_morph_close.png"))
+    cx, cy = rs[:, 0], rs[:, 1]
 
-    # 06 — Contour trên ảnh gốc  (dùng contour từ main, không gọi lại preprocess_leaf)
-    leaf_area = int((mask > 0).sum())
-    contour_vis = cv2.drawContours(
-        img.copy(), [contour.astype(np.int32)], -1, (0, 255, 0), 2)
-    _save(f"06 — Contour lớn nhất ({len(contour)} điểm  |  CCW)",
-          contour_vis, _p(out_dir, "step1_06_contour.png"))
+    # 02–06 Tái tạo các bậc
+    for i, n_h in enumerate([1, 3, 6, 12, HARMONICS]):
+        x, y = reconstruct(n_h)
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        axes[0].plot(x, y, 'b-', lw=2)
+        axes[0].set_title(f'EFD space (n={n_h})', fontweight='bold')
+        axes[0].set_aspect('equal'); axes[0].invert_yaxis(); axes[0].grid(alpha=0.3)
+        axes[1].plot(cx, cy, 'g--', lw=1.5, label='Contour gốc')
+        axes[1].plot(x, y, 'b-', lw=2, label=f'Reconstruct n={n_h}')
+        axes[1].set_title('So sánh pixel space', fontweight='bold')
+        axes[1].set_aspect('equal'); axes[1].invert_yaxis()
+        axes[1].legend(); axes[1].grid(alpha=0.3)
+        fname = f"shape_{i+2:02d}_reconstruct_n{n_h}.png"
+        plt.suptitle(f"Tái tạo EFD bậc {n_h}", fontweight='bold')
+        plt.tight_layout()
+        plt.savefig(_p(out_dir, fname), dpi=110)
+        plt.close()
+        print(f"    → {fname}")
 
-    # 07 — Mask
-    _save(f"07 — Mask lá (diện tích = {leaf_area:,} px)",
-          mask, _p(out_dir, "step1_07_mask.png"))
-
-    # 08 — Mask + vùng cắt
-    leaf_cut = cv2.bitwise_and(img, img, mask=mask)
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    axes[0].imshow(mask, cmap='gray')
-    axes[0].set_title(f"Mask  ({leaf_area:,} px)", fontweight='bold')
-    axes[0].axis('off')
-    axes[1].imshow(cv2.cvtColor(leaf_cut, cv2.COLOR_BGR2RGB))
-    axes[1].set_title("Vùng lá sau cắt nền", fontweight='bold')
-    axes[1].axis('off')
-    plt.suptitle("08 — Mask & vùng lá đã cắt", fontweight='bold')
+    # 07 - Amplitude plot
+    amps = [np.sqrt(sum(c**2 for c in coeffs[n])) for n in range(1, len(coeffs))]
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.bar(range(1, len(amps) + 1), amps)
+    ax.set_xlabel("Harmonic n"); ax.set_ylabel("Amplitude")
+    ax.set_title("07 — Biên độ EFD theo bậc", fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(_p(out_dir, "step1_08_mask_and_crop.png"), dpi=110, bbox_inches='tight')
+    plt.savefig(_p(out_dir, "shape_07_amplitudes.png"), dpi=110)
     plt.close()
-    print("    → step1_08_mask_and_crop.png")
+    print("    → shape_07_amplitudes.png")
 
-    print(f"  → Tổng: 9 ảnh (step1_00 ÷ step1_08)")
+    # 08 - So sánh vector DB vs raw
+    efd_vec     = extract_efd(contour)
+    efd_raw_vec = coeffs[1:HARMONICS, :].flatten().astype(np.float32)
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8))
+    axes[0].bar(range(len(efd_raw_vec)), efd_raw_vec,
+                color='steelblue', edgecolor='white', alpha=0.85)
+    axes[0].set_title("EFD vector — normalize=False (phụ thuộc scale)", fontweight='bold')
+    axes[0].set_xlabel("Chiều"); axes[0].set_ylabel("Giá trị")
+    axes[0].axhline(0, color='black', lw=0.5); axes[0].grid(axis='y', alpha=0.3)
+
+    axes[1].bar(range(len(efd_vec)), efd_vec,
+                color='coral', edgecolor='white', alpha=0.85)
+    axes[1].set_title(
+        f"EFD vector — normalized [{len(efd_vec)} chiều] ← vector lưu DB",
+        fontweight='bold')
+    axes[1].set_xlabel("Chiều"); axes[1].set_ylabel("Giá trị")
+    axes[1].axhline(0, color='black', lw=0.5); axes[1].grid(axis='y', alpha=0.3)
+
+    plt.suptitle("08 — So sánh EFD normalized vs raw", fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(_p(out_dir, "shape_08_efd_normalized_vs_raw.png"), dpi=110,
+                bbox_inches='tight')
+    plt.close()
+    print("    → shape_08_efd_normalized_vs_raw.png")
+
+    print(f"  EFD vector ({len(efd_vec)} chiều): "
+          f"min={efd_vec.min():.4f}  max={efd_vec.max():.4f}  "
+          f"mean={efd_vec.mean():.4f}")
+    print(f"  → Tổng: 9 ảnh (shape_00 ÷ shape_08)")

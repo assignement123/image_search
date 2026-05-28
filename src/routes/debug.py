@@ -22,41 +22,73 @@ DEBUG_STEP_ORDER = [
 
 @debug_bp.route("/api/debug/<filename>", methods=["GET"])
 def debug_image(filename):
-    safe_name = Path(filename).name
-    img_path = next(LEAVES_DATA_DIR.rglob(safe_name), None)
-
-    if not img_path:
-        return jsonify({"error": "Không tìm thấy ảnh"}), 404
-
-    stem = Path(filename).stem
-    out_dir = DEBUG_OUTPUT_DIR / stem
-    out_dir.mkdir(exist_ok=True)
-
-    pngs = list(out_dir.glob("*.png"))
-    if len(pngs) > 0:
-        return jsonify({"status": "done", "cached": True, "images": build_debug_list(stem, pngs)})
-
     try:
+        safe_name = Path(filename).name
+        img_path = next(LEAVES_DATA_DIR.rglob(safe_name), None)
+
+        if not img_path:
+            return jsonify({"error": f"Không tìm thấy ảnh: {safe_name}"}), 404
+
+        stem = Path(filename).stem
+        out_dir = DEBUG_OUTPUT_DIR / stem
+        out_dir.mkdir(exist_ok=True)
+
+        # Kiểm tra cache
+        pngs = list(out_dir.glob("*.png"))
+        if len(pngs) > 0:
+            return jsonify({
+                "status": "done", 
+                "cached": True, 
+                "images": build_debug_list(stem, pngs)
+            })
+
+        # === Chạy debug script ===
         script_path = str(BASE_DIR / "src" / "debug" / "run_debug.py")
         if not os.path.exists(script_path):
-            script_path = str(BASE_DIR / "src" / "leaf_debug.py") # Fallback
+            return jsonify({"error": f"Không tìm thấy debug script: {script_path}"}), 500
+
+        print(f"[DEBUG] Bắt đầu chạy: {script_path} với ảnh {img_path}")  # Log
 
         result = subprocess.run(
             ["python", script_path, str(img_path), "--out", str(out_dir)],
-            cwd=str(BASE_DIR), capture_output=True, text=True, timeout=120
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=120
         )
+
+        print(f"[DEBUG] Return code: {result.returncode}")
+
+        if result.stdout:
+            print("[DEBUG] STDOUT:\n", result.stdout)
+        if result.stderr:
+            print("[DEBUG] STDERR:\n", result.stderr)
+
         if result.returncode != 0:
-            return jsonify({"error": "Debug script failed", "stderr": result.stderr}), 500
+            return jsonify({
+                "error": "Debug script chạy thất bại",
+                "stderr": result.stderr[:500],   # giới hạn độ dài
+                "stdout": result.stdout[:300]
+            }), 500
+
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Debug timeout"}), 500
+        return jsonify({"error": "Debug script chạy quá lâu (timeout)"}), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        error_detail = traceback.format_exc()
+        print("[DEBUG EXCEPTION]\n", error_detail)
+        return jsonify({"error": str(e), "detail": error_detail}), 500
 
+    # Lấy lại danh sách ảnh sau khi chạy
     pngs = list(out_dir.glob("*.png"))
-    if len(pngs) == 0:
-        return jsonify({"error": "Không tạo được ảnh debug"}), 500
+    if not pngs:
+        return jsonify({"error": "Không tạo được file debug nào"}), 500
 
-    return jsonify({"status": "done", "cached": False, "images": build_debug_list(stem, pngs)})
+    return jsonify({
+        "status": "done", 
+        "cached": False, 
+        "images": build_debug_list(stem, pngs)
+    })
 
 @debug_bp.route("/api/debug-image/<stem>/<img>")
 def serve_debug(stem, img):
