@@ -5,6 +5,14 @@ from scipy.interpolate import interp1d
 from src.config import HARMONICS, N_RESAMPLE, DIM_EFD
 from src.core.preprocess import _fix_contour_orientation
 
+
+def _l2_normalize(vec: np.ndarray) -> np.ndarray:
+    vec = np.asarray(vec, dtype=np.float32)
+    norm = float(np.linalg.norm(vec))
+    if norm > 0:
+        return (vec / norm).astype(np.float32)
+    return vec
+
 def _resample_contour(contour: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
     contour = np.asarray(contour, np.float64)
     if len(contour) < 4:
@@ -42,7 +50,7 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
     amp1 = np.sqrt(a1**2 + b1**2 + c1**2 + d1**2)
     if amp1 > 1e-10:
         coeffs /= amp1
-    return coeffs[2:HARMONICS + 1, :].flatten().astype(np.float32) 
+    return _l2_normalize(coeffs[2:HARMONICS + 1, :].flatten())
 
 def extract_morphology(contour: np.ndarray) -> np.ndarray:
     contour = contour.astype(np.float32)
@@ -54,4 +62,4 @@ def extract_morphology(contour: np.ndarray) -> np.ndarray:
     hull = cv2.convexHull(contour)
     hull_area = cv2.contourArea(hull)
     solidity = float(area) / hull_area if hull_area > 0 else 0.0
-    return np.array([aspect_ratio, circularity, solidity], dtype=np.float32)
+    return _l2_normalize(np.array([aspect_ratio, circularity, solidity], dtype=np.float32))

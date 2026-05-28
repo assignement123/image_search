@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS search_feature_gamma (
+    feature_name VARCHAR(50) PRIMARY KEY,
+    gamma        DOUBLE PRECISION NOT NULL,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT INTO meta (key, value) VALUES
     ('harmonics',      '20'),
     ('n_resample',     '600'),
@@ -37,6 +43,9 @@ INSERT INTO meta (key, value) VALUES
     ('dim_vein',       '9')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
+-- Gamma có thể được cập nhật độc lập cho từng feature.
+-- Không lưu weight ở đây để backend vẫn có thể điều chỉnh linh hoạt.
+
 CREATE INDEX idx_efd_hnsw ON leaf_collection USING hnsw (efd_coeffs vector_l2_ops);
 CREATE INDEX idx_morph_hnsw ON leaf_collection USING hnsw (morphology_stats vector_l2_ops);
 CREATE INDEX idx_glcm_hnsw ON leaf_collection USING hnsw (glcm_stats vector_l2_ops);
@@ -45,4 +54,30 @@ CREATE INDEX idx_vein_hnsw ON leaf_collection USING hnsw (vein_features vector_l
 CREATE INDEX idx_lbp_hnsw ON leaf_collection USING hnsw (lbp_hist vector_l2_ops);
 CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments vector_l2_ops);
 
+CREATE OR REPLACE FUNCTION chi_square_dist(vec1 vector, vec2 vector)
+RETURNS float8 AS $$
+DECLARE
+    s1 text := regexp_replace(vec1::text, '[\[\]\s]', '', 'g');
+    s2 text := regexp_replace(vec2::text, '[\[\]\s]', '', 'g');
+    arr1 float8[] := CASE WHEN s1 = '' THEN ARRAY[]::float8[] ELSE string_to_array(s1, ',')::float8[] END;
+    arr2 float8[] := CASE WHEN s2 = '' THEN ARRAY[]::float8[] ELSE string_to_array(s2, ',')::float8[] END;
+    dim int := array_length(arr1, 1);
+    distance float8 := 0.0;
+    diff float8;
+    sum_val float8;
+BEGIN
+    IF dim IS NULL OR dim != array_length(arr2, 1) THEN
+        RAISE EXCEPTION 'Số chiều của hai vector không khớp nhau!';
+    END IF;
 
+    FOR i IN 1..dim LOOP
+        sum_val := arr1[i] + arr2[i];
+        IF sum_val > 1e-9 THEN
+            diff := arr1[i] - arr2[i];
+            distance := distance + ((diff * diff) / sum_val);
+        END IF;
+    END LOOP;
+
+    RETURN distance;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE STRICT;

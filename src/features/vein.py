@@ -1,6 +1,14 @@
 import cv2
 import numpy as np
 
+
+def _l2_normalize(vec: np.ndarray) -> np.ndarray:
+    vec = np.asarray(vec, dtype=np.float32)
+    norm = float(np.linalg.norm(vec))
+    if norm > 0:
+        return (vec / norm).astype(np.float32)
+    return vec
+
 def extract_vein_features(img: np.ndarray, mask: np.ndarray, leaf_area: int) -> np.ndarray:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
@@ -26,4 +34,4 @@ def extract_vein_features(img: np.ndarray, mask: np.ndarray, leaf_area: int) -> 
     else:
         hist = np.zeros(8)
         
-    return np.concatenate([[density], hist]).astype(np.float32)
+    return _l2_normalize(np.concatenate([[density], hist]).astype(np.float32))

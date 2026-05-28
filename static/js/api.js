@@ -10,7 +10,7 @@ export async function getSpeciesList() {
 }
 
 export async function getSpeciesImages(speciesName, page = 1) {
-    const res = await fetch(`/api/species/${encodeURIComponent(speciesName)}?page=${page}&per_page=20`);
+    const res = await fetch(`/api/species/${encodeURIComponent(speciesName)}?page=${page}&per_page=24`);
     return res.json();
 }
 
