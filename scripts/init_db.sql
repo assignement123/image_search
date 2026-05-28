@@ -57,7 +57,6 @@ CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments vector_
 CREATE OR REPLACE FUNCTION chi_square_dist(vec1 vector, vec2 vector)
 RETURNS float8 AS $$
 DECLARE
-    -- chuyển biểu diễn vector sang text rồi tách các phần tử
     s1 text := regexp_replace(vec1::text, '[\[\]\s]', '', 'g');
     s2 text := regexp_replace(vec2::text, '[\[\]\s]', '', 'g');
     arr1 float8[] := CASE WHEN s1 = '' THEN ARRAY[]::float8[] ELSE string_to_array(s1, ',')::float8[] END;
