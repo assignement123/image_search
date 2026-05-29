@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Debug Viewer</title>
+    <link rel="stylesheet" href="/static/debug_view.css" />
+</head>
+<body data-safe-name="{{ safe_name }}">
+    <h2>🌿 Debug ảnh: {{ safe_name }}</h2>
+    <div class="layout">
+        <div class="panel">
+            <div id="debug">⏳ Đang tải...</div>
+        </div>
+        <div class="panel">
+            <h3 style="margin-top:0">Top-k Texture Explain (LBP + GLCM)</h3>
+            <p class="muted">Dữ liệu lấy từ lần search gần nhất trong cùng tab (sessionStorage).</p>
+            <div class="actions">
+                <button id="export-json" class="btn">Export JSON</button>
+                <button id="export-csv" class="btn">Export CSV</button>
+            </div>
+            <div class="controls">
+                <select id="sort-key" class="control">
+                    <option value="rank">Sort: Rank</option>
+                    <option value="similarity">Sort: Similarity</option>
+                    <option value="lbp_distance">Sort: LBP distance</option>
+                    <option value="glcm_distance">Sort: GLCM distance</option>
+                    <option value="lbp_weighted">Sort: LBP contribution</option>
+                    <option value="glcm_weighted">Sort: GLCM contribution</option>
+                </select>
+                <select id="sort-order" class="control">
+                    <option value="asc">Asc</option>
+                    <option value="desc">Desc</option>
+                </select>
+            </div>
+            <div id="selected-metrics" class="muted">Chưa có dữ liệu giải thích.</div>
+            <div id="selected-preview" style="display:none"></div>
+            <div class="chart-wrap" id="charts" style="display:none">
+                <div class="chart-title">LBP vector so sánh (query vs result)</div>
+                <svg id="lbp-chart" class="sparkline" viewBox="0 0 360 120" preserveAspectRatio="none"></svg>
+                <div class="chart-title">LBP |query - result| theo bin</div>
+                <svg id="lbp-diff-chart" class="delta-bars" viewBox="0 0 360 90" preserveAspectRatio="none"></svg>
+                <div id="lbp-delta" class="delta"></div>
+                <div id="lbp-hover" class="hover-note"></div>
+
+                <div class="chart-title" style="margin-top:12px">GLCM vector so sánh (query vs result)</div>
+                <svg id="glcm-chart" class="sparkline" viewBox="0 0 360 120" preserveAspectRatio="none"></svg>
+                <div class="chart-title">GLCM |query - result| theo index</div>
+                <svg id="glcm-diff-chart" class="delta-bars" viewBox="0 0 360 90" preserveAspectRatio="none"></svg>
+                <div id="glcm-delta" class="delta"></div>
+                <div id="glcm-hover" class="hover-note"></div>
+                <div class="legend">Mau xanh la query, mau cam la result dang chon</div>
+            </div>
+            <table id="explain-table" style="display:none;margin-top:10px">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Filename</th>
+                        <th>LBP d</th>
+                        <th>GLCM d</th>
+                        <th>Sim %</th>
+                    </tr>
+                </thead>
+                <tbody id="explain-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/static/js/debug_view.js"></script>
+</body>
+</html>

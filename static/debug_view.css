@@ -1,0 +1,29 @@
+body { font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }
+h2 { margin-bottom: 12px; }
+.layout { display: grid; grid-template-columns: 1fr 420px; gap: 20px; align-items: start; }
+.panel { background: #222; border: 1px solid #3b3b3b; border-radius: 10px; padding: 12px; }
+img { margin: 10px 0; border: 1px solid #444; max-width: 100%; border-radius: 8px; }
+h4 { color: #4CAF50; margin-top: 20px; margin-bottom: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border-bottom: 1px solid #3a3a3a; padding: 8px 6px; text-align: left; }
+th { color: #96d5ff; font-weight: 600; }
+tr.active { background: #2b3440; }
+.muted { color: #bbb; font-size: 12px; }
+.chip { display:inline-block; padding: 2px 8px; border-radius: 999px; background:#303030; font-size:12px; margin-right:6px; }
+.chart-wrap { margin-top: 12px; }
+.chart-title { font-size: 12px; color: #ddd; margin: 6px 0; }
+.sparkline { width: 100%; height: 120px; background: #141414; border: 1px solid #343434; border-radius: 8px; }
+.delta-bars { width: 100%; height: 90px; background: #121212; border: 1px solid #2f2f2f; border-radius: 8px; }
+.legend { font-size: 11px; color: #aaa; margin-top: 6px; }
+.delta { margin-top: 8px; font-size: 12px; color: #ddd; }
+.hover-note { margin-top: 4px; font-size: 11px; color: #9ecbff; min-height: 16px; }
+.actions { display:flex; gap:8px; margin: 8px 0 6px; }
+.btn { padding:6px 10px; border:1px solid #3a3a3a; border-radius:8px; background:#2a2a2a; color:#fff; cursor:pointer; font-size:12px; }
+.btn:hover { background:#333; }
+.controls { display:flex; gap:8px; margin: 8px 0; }
+.control { flex:1; padding:6px 8px; border:1px solid #3a3a3a; border-radius:8px; background:#1b1b1b; color:#fff; font-size:12px; }
+.preview-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top: 10px; }
+.preview-item { background:#181818; border:1px solid #333; border-radius:8px; padding:6px; }
+.preview-item p { margin:0 0 4px; font-size:11px; color:#b7b7b7; }
+.preview-item img { width:100%; aspect-ratio:1; object-fit:cover; margin:0; }
+.warn { color:#ff8484; font-weight:700; }

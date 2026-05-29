@@ -304,6 +304,11 @@ body > * { position: relative; z-index: 1; }
   font-weight: 700;
   color: var(--accent);
 }
+.result-texture {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
 .score-bar {
   height: 3px;
   border-radius: 2px;

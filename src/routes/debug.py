@@ -2,7 +2,7 @@
 import os
 import subprocess
 from pathlib import Path
-from flask import Blueprint, jsonify, send_file
+from flask import Blueprint, jsonify, render_template, send_file
 
 debug_bp = Blueprint('debug', __name__)
 
@@ -74,29 +74,4 @@ def build_debug_list(stem, pngs):
 @debug_bp.route("/debug-view/<filename>")
 def debug_view(filename):
     safe_name = Path(filename).name
-    return f"""
-    <html>
-    <head>
-        <title>Debug Viewer</title>
-        <style>
-            body {{ font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }}
-            img {{ margin: 10px 0; border: 1px solid #444; max-width: 100%; }}
-            h4 {{ color: #4CAF50; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <h2>🌿 Debug ảnh: {safe_name}</h2>
-        <div id="debug">⏳ Đang tải...</div>
-        <script>
-            fetch(`/api/debug/{safe_name}`)
-                .then(res => res.json())
-                .then(data => {{
-                    if (data.error) {{ document.getElementById("debug").innerHTML = "❌ " + data.error; return; }}
-                    let html = "";
-                    data.images.forEach(img => html += `<h4>${{img.group}}</h4><img src="${{img.url}}" width="600"/>`);
-                    document.getElementById("debug").innerHTML = html;
-                }})
-        </script>
-    </body>
-    </html>
-    """
+    return render_template("debug_view.html", safe_name=safe_name)

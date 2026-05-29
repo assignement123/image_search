@@ -140,12 +140,20 @@ async function runSearch() {
     formData.append("w_glcm", weights.w_glcm);
     formData.append("w_color", weights.w_color);
     formData.append("w_vein", weights.w_vein);
+    formData.append("explain", "true");
 
     try {
         // Gọi hàm fetch từ api.js
         const data = await searchLeaf(formData);
 
         document.getElementById("search-loading").style.display = "none";
+        if (Array.isArray(data.results)) {
+            sessionStorage.setItem("lastSearchResults", JSON.stringify(data.results));
+        }
+        if (data.explain_meta) {
+            sessionStorage.setItem("lastSearchExplainMeta", JSON.stringify(data.explain_meta));
+        }
+
         renderResults(data.results);
         document.getElementById("results-count").textContent = `${data.count} kết quả`;
         document.getElementById("results-header").style.display = "flex";
@@ -181,6 +189,11 @@ function renderResults(results) {
             ? `<div class="rank-badge rank-${i + 1}">${i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</div>`
             : `<div class="rank-badge">#${i + 1}</div>`;
 
+                const texture = r.explain?.texture;
+                const textureHtml = texture
+                        ? `<div class="result-texture">LBP d=${texture.lbp.distance.toFixed(4)} | GLCM d=${texture.glcm.distance.toFixed(4)}</div>`
+                        : "";
+
         card.innerHTML = `
       ${rankHtml}
       <div class="result-img-wrap">
@@ -191,6 +204,7 @@ function renderResults(results) {
         <div class="result-filename">${r.filename}</div>
         <div class="result-species">${formatSpecies(r.species)}</div>
         <div class="result-score">${r.similarity}% tương đồng</div>
+                ${textureHtml}
         <div class="score-bar" style="width:${Math.min(r.similarity, 100)}%"></div>
       </div>
     `;
@@ -201,7 +215,8 @@ function renderResults(results) {
                 r.image_url,
                 r.filename,
                 r.species,
-                r.similarity + "% tương đồng"
+                r.similarity + "% tương đồng",
+                r
             )
         );
 

@@ -4,7 +4,7 @@ export function formatSpecies(name) {
     return name.replace(/_/g, " ");
 }
 
-export function openLightbox(imgUrl, filename, species, score) {
+export function openLightbox(imgUrl, filename, species, score, resultPayload = null) {
     document.getElementById("lightbox-img").src = imgUrl;
     document.getElementById("lightbox-filename").textContent = filename;
     document.getElementById("lightbox-species").textContent = formatSpecies(species);
@@ -13,6 +13,9 @@ export function openLightbox(imgUrl, filename, species, score) {
     document.body.style.overflow = "hidden";
 
     document.getElementById("debug-btn").dataset.filename = filename;
+    if (resultPayload) {
+        sessionStorage.setItem("debugSelectedResult", JSON.stringify(resultPayload));
+    }
 }
 
 export function closeLightbox() {
