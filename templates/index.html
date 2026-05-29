@@ -479,6 +479,42 @@
   </div>
 </div>
 
+<!-- ══ DEBUG MODAL ═══════════════════════════════════════════════════ -->
+<div class="debug-modal-overlay" id="debug-modal" style="display:none">
+  <div class="debug-modal-box glass">
+
+    <!-- Header -->
+    <div class="debug-modal-header">
+      <h2 class="debug-modal-title" id="debug-modal-title">🔬 Debug</h2>
+      <div class="debug-modal-actions">
+        <button class="btn btn-ghost btn-sm" id="debug-rerun-btn" title="Xoá cache và chạy lại">
+          🔄 Chạy lại
+        </button>
+        <button class="debug-modal-close-btn" id="debug-modal-close" title="Đóng">✕</button>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div class="debug-state-wrap" id="debug-loading" style="display:flex">
+      <div class="spinner"></div>
+      <p style="color:var(--text-muted);margin-top:12px">Đang trích xuất đặc trưng debug...<br>
+        <small style="font-size:11px;opacity:0.7">Lần đầu có thể mất 30–60 giây</small>
+      </p>
+    </div>
+
+    <!-- Error state -->
+    <div class="debug-state-wrap" id="debug-error" style="display:none">
+      <div style="font-size:40px">⚠️</div>
+      <p style="color:var(--danger);font-weight:600;margin:8px 0 4px">Chạy debug thất bại</p>
+      <pre id="debug-error-msg" style="color:var(--text-muted);font-size:11px;white-space:pre-wrap;max-width:600px;text-align:left;background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;overflow-y:auto;max-height:200px"></pre>
+    </div>
+
+    <!-- Content (tabs + images) -->
+    <div id="debug-content" style="display:none"></div>
+
+  </div>
+</div>
+
 <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
