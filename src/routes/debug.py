@@ -11,92 +11,147 @@ LEAVES_DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "leaves_data")).resolve(
 DEBUG_OUTPUT_DIR = BASE_DIR / "debug_outputs"
 DEBUG_OUTPUT_DIR.mkdir(exist_ok=True)
 
-DEBUG_STEP_ORDER = [
-    ("Tiền xử lý",           "step1_"),
-    ("EFD — Hình dạng biên", "step2a_"),
-    ("Texture (LBP + GLCM)", "step2b_"),
-    ("Color Moments",        "step2c_"),
-    ("Gân lá",               "step2d_"),
-    ("Tổng hợp",             "step3_"),
+# Nhóm debug theo prefix file thực tế từ các debug module
+DEBUG_GROUPS = [
+    ("preprocess", "🔧 Tiền xử lý",       "step1_"),
+    ("shape",      "📐 Hình dạng (EFD)",   "shape_"),
+    ("texture",    "🔲 Texture (LBP+GLCM)","step2b_"),
+    ("color",      "🎨 Color Moments",     "color_"),
+    ("vein",       "🌿 Gân lá",            "vein_"),
 ]
+
 
 @debug_bp.route("/api/debug/<filename>", methods=["GET"])
 def debug_image(filename):
-    safe_name = Path(filename).name
-    img_path = next(LEAVES_DATA_DIR.rglob(safe_name), None)
-
-    if not img_path:
-        return jsonify({"error": "Không tìm thấy ảnh"}), 404
-
-    stem = Path(filename).stem
-    out_dir = DEBUG_OUTPUT_DIR / stem
-    out_dir.mkdir(exist_ok=True)
-
-    pngs = list(out_dir.glob("*.png"))
-    if len(pngs) > 0:
-        return jsonify({"status": "done", "cached": True, "images": build_debug_list(stem, pngs)})
-
     try:
+        safe_name = Path(filename).name
+        img_path = next(LEAVES_DATA_DIR.rglob(safe_name), None)
+
+        if not img_path:
+            return jsonify({"error": f"Không tìm thấy ảnh: {safe_name}"}), 404
+
+        stem = Path(filename).stem
+        out_dir = DEBUG_OUTPUT_DIR / stem
+        out_dir.mkdir(exist_ok=True)
+
+        # Kiểm tra cache — nếu đã có PNG thì trả luôn
+        pngs = list(out_dir.glob("*.png"))
+        if len(pngs) > 0:
+            return jsonify({
+                "status": "done",
+                "cached": True,
+                "filename": safe_name,
+                "groups": build_debug_groups(stem, pngs)
+            })
+
+        # === Chạy debug script ===
         script_path = str(BASE_DIR / "src" / "debug" / "run_debug.py")
         if not os.path.exists(script_path):
-            script_path = str(BASE_DIR / "src" / "leaf_debug.py") # Fallback
+            return jsonify({"error": f"Không tìm thấy debug script: {script_path}"}), 500
+
+        print(f"[DEBUG] Bắt đầu chạy: {script_path} với ảnh {img_path}")
 
         result = subprocess.run(
             ["python", script_path, str(img_path), "--out", str(out_dir)],
-            cwd=str(BASE_DIR), capture_output=True, text=True, timeout=120
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=180
         )
+
+        print(f"[DEBUG] Return code: {result.returncode}")
+        if result.stdout:
+            print("[DEBUG] STDOUT:\n", result.stdout)
+        if result.stderr:
+            print("[DEBUG] STDERR:\n", result.stderr)
+
         if result.returncode != 0:
-            return jsonify({"error": "Debug script failed", "stderr": result.stderr}), 500
+            return jsonify({
+                "error": "Debug script chạy thất bại",
+                "stderr": result.stderr[:1000],
+                "stdout": result.stdout[:500]
+            }), 500
+
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Debug timeout"}), 500
+        return jsonify({"error": "Debug script chạy quá lâu (timeout 180s)"}), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        error_detail = traceback.format_exc()
+        print("[DEBUG EXCEPTION]\n", error_detail)
+        return jsonify({"error": str(e), "detail": error_detail}), 500
 
     pngs = list(out_dir.glob("*.png"))
-    if len(pngs) == 0:
-        return jsonify({"error": "Không tạo được ảnh debug"}), 500
+    if not pngs:
+        return jsonify({"error": "Không tạo được file debug nào"}), 500
 
-    return jsonify({"status": "done", "cached": False, "images": build_debug_list(stem, pngs)})
+    return jsonify({
+        "status": "done",
+        "cached": False,
+        "filename": safe_name,
+        "groups": build_debug_groups(stem, pngs)
+    })
+
 
 @debug_bp.route("/api/debug-image/<stem>/<img>")
 def serve_debug(stem, img):
     path = DEBUG_OUTPUT_DIR / stem / img
-    return send_file(str(path)) if path.exists() else (jsonify({"error": "Not found"}), 404)
+    if path.exists():
+        return send_file(str(path))
+    return jsonify({"error": "Not found"}), 404
 
-def build_debug_list(stem, pngs):
-    result = []
-    for group, prefix in DEBUG_STEP_ORDER:
-        for p in sorted(pngs):
-            if p.name.startswith(prefix):
-                result.append({"group": group, "url": f"/api/debug-image/{stem}/{p.name}", "title": p.name})
-    return result
 
-@debug_bp.route("/debug-view/<filename>")
-def debug_view(filename):
-    safe_name = Path(filename).name
-    return f"""
-    <html>
-    <head>
-        <title>Debug Viewer</title>
-        <style>
-            body {{ font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }}
-            img {{ margin: 10px 0; border: 1px solid #444; max-width: 100%; }}
-            h4 {{ color: #4CAF50; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <h2>🌿 Debug ảnh: {safe_name}</h2>
-        <div id="debug">⏳ Đang tải...</div>
-        <script>
-            fetch(`/api/debug/{safe_name}`)
-                .then(res => res.json())
-                .then(data => {{
-                    if (data.error) {{ document.getElementById("debug").innerHTML = "❌ " + data.error; return; }}
-                    let html = "";
-                    data.images.forEach(img => html += `<h4>${{img.group}}</h4><img src="${{img.url}}" width="600"/>`);
-                    document.getElementById("debug").innerHTML = html;
-                }})
-        </script>
-    </body>
-    </html>
+@debug_bp.route("/api/debug-clear/<stem>", methods=["DELETE"])
+def clear_debug_cache(stem):
+    """Xoá cache debug để chạy lại."""
+    import shutil
+    out_dir = DEBUG_OUTPUT_DIR / Path(stem).stem
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    return jsonify({"status": "cleared"})
+
+
+def build_debug_groups(stem: str, pngs: list) -> list:
     """
+    Nhóm các PNG theo DEBUG_GROUPS. Trả về list dict:
+    [{ "id": "color", "title": "...", "images": [{"url":..., "name":...}, ...] }]
+    """
+    sorted_pngs = sorted(pngs, key=lambda p: p.name)
+    result = []
+    used = set()
+
+    for group_id, group_title, prefix in DEBUG_GROUPS:
+        imgs = []
+        for p in sorted_pngs:
+            if p.name.startswith(prefix) and p.name not in used:
+                used.add(p.name)
+                imgs.append({
+                    "url": f"/api/debug-image/{stem}/{p.name}",
+                    "name": p.stem.replace("_", " ").title(),
+                    "filename": p.name,
+                })
+        if imgs:
+            result.append({
+                "id": group_id,
+                "title": group_title,
+                "images": imgs,
+            })
+
+    # Nhóm "Khác" — các PNG chưa được match
+    others = [p for p in sorted_pngs if p.name not in used]
+    if others:
+        result.append({
+            "id": "other",
+            "title": "📁 Khác",
+            "images": [
+                {
+                    "url": f"/api/debug-image/{stem}/{p.name}",
+                    "name": p.stem.replace("_", " ").title(),
+                    "filename": p.name,
+                }
+                for p in others
+            ]
+        })
+
+    return result

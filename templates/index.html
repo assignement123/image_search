@@ -23,7 +23,8 @@
       </div>
     </div>
     <nav class="nav" id="nav">
-      <button class="nav-btn active" data-tab="search" id="nav-search">🔍 Tìm kiếm</button>
+      <button class="nav-btn active" data-tab="overview" id="nav-overview">📖 Giới thiệu</button>
+      <button class="nav-btn" data-tab="search" id="nav-search">🔍 Tìm kiếm</button>
       <button class="nav-btn" data-tab="browse" id="nav-browse">🌿 Duyệt loài</button>
       <button class="nav-btn" data-tab="stats" id="nav-stats">📊 Thống kê</button>
       <button class="nav-btn" data-tab="manage" id="nav-manage">⚙️ Quản lý</button>
@@ -38,8 +39,176 @@
 <!-- ══ MAIN CONTENT ══════════════════════════════════════════════════ -->
 <main class="main">
 
+  <!-- ── TAB: OVERVIEW ────────────────────────────────────────────── -->
+  <section class="tab-content active" id="tab-overview">
+    <div class="stats-layout">
+
+      <!-- Block 1: Project header -->
+      <div class="glass panel" style="padding:2rem 2.5rem; text-align:center; margin-bottom:0">
+        <div style="font-size:3rem;margin-bottom:0.5rem">🌿</div>
+        <h1 style="font-size:2rem;font-weight:700;color:var(--text-primary);margin:0 0 0.5rem">Leaf Image Retrieval System</h1>
+        <p style="color:var(--text-secondary);font-size:1.05rem;margin:0 0 1rem">Hệ thống lưu trữ và truy vấn ảnh lá cây dựa trên nội dung (CBIR)</p>
+        <div style="display:inline-block;background:linear-gradient(135deg,#1e3a5f,#2d5a8e);border:1px solid #4a90d9;border-radius:999px;padding:0.4rem 1.2rem;font-size:0.875rem;color:#a8d1ff;font-weight:500">
+          Flavia Leaf Dataset · 1,907 ảnh · 32 loài · 143 chiều đặc trưng
+        </div>
+      </div>
+
+      <!-- Block 2: Pipeline tổng quan -->
+      <div class="glass panel" style="padding:1.75rem 2rem">
+        <h2 class="panel-title">⚙️ Pipeline Xử Lý</h2>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.6rem;margin-top:1rem">
+
+          <div style="background:linear-gradient(135deg,#1a2a4a,#243855);border:1px solid #3a5f8a;border-radius:10px;padding:0.75rem 2rem;font-weight:600;color:#7ecfff;font-size:0.95rem;width:100%;max-width:420px;text-align:center">
+            📷 Ảnh lá đầu vào
+          </div>
+          <div style="color:#4a8fc0;font-size:1.4rem;line-height:1">↓</div>
+
+          <div style="background:linear-gradient(135deg,#1a2a4a,#243855);border:1px solid #3a5f8a;border-radius:10px;padding:0.75rem 2rem;width:100%;max-width:420px;text-align:center">
+            <div style="font-weight:600;color:#7ecfff;margin-bottom:0.25rem">🔧 Tiền xử lý</div>
+            <div style="font-size:0.82rem;color:#8a9dc0">Grayscale → Otsu INV → Morph → Contour → Mask</div>
+          </div>
+          <div style="color:#4a8fc0;font-size:1.4rem;line-height:1">↓</div>
+
+          <div style="background:linear-gradient(135deg,#1a2a4a,#243855);border:1px solid #3a5f8a;border-radius:10px;padding:0.75rem 2rem;width:100%;max-width:600px;text-align:center">
+            <div style="font-weight:600;color:#7ecfff;margin-bottom:0.5rem">🔬 Trích xuất đặc trưng — 6 nhóm song song</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center">
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">EFD (76D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Morphology (3D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">LBP (26D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">GLCM (20D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Color (9D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Vein (9D)</span>
+            </div>
+          </div>
+          <div style="color:#4a8fc0;font-size:1.4rem;line-height:1">↓</div>
+
+          <div style="background:linear-gradient(135deg,#1a2a4a,#243855);border:1px solid #3a5f8a;border-radius:10px;padding:0.75rem 2rem;width:100%;max-width:420px;text-align:center">
+            <div style="font-weight:600;color:#7ecfff;margin-bottom:0.25rem">🗄️ Lưu vào PostgreSQL + pgvector</div>
+            <div style="font-size:0.82rem;color:#8a9dc0">HNSW index, L2 distance</div>
+          </div>
+          <div style="color:#4a8fc0;font-size:1.4rem;line-height:1">↓</div>
+
+          <div style="background:linear-gradient(135deg,#1a2a4a,#243855);border:1px solid #3a5f8a;border-radius:10px;padding:0.75rem 2rem;width:100%;max-width:420px;text-align:center">
+            <div style="font-weight:600;color:#7ecfff;margin-bottom:0.25rem">🔍 Truy vấn CBIR</div>
+            <div style="font-size:0.82rem;color:#8a9dc0">Weighted fusion / Cascaded filtering → Top-N kết quả</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Block 3: Bảng đặc trưng -->
+      <div class="glass panel" style="padding:1.75rem 2rem">
+        <h2 class="panel-title">📋 Đặc Trưng Trích Xuất</h2>
+        <div style="overflow-x:auto;margin-top:1rem">
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+            <thead>
+              <tr style="border-bottom:1px solid #2a3a5a">
+                <th style="padding:0.7rem 1rem;text-align:left;color:#7ecfff;font-weight:600">Nhóm</th>
+                <th style="padding:0.7rem 1rem;text-align:left;color:#7ecfff;font-weight:600">Thuật toán</th>
+                <th style="padding:0.7rem 1rem;text-align:center;color:#7ecfff;font-weight:600">Chiều</th>
+                <th style="padding:0.7rem 1rem;text-align:left;color:#7ecfff;font-weight:600">Mô tả</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid #1a2a3a">
+                <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Hình dáng</td>
+                <td style="padding:0.7rem 1rem;color:#c8ddf0">EFD (Elliptic Fourier Descriptors)</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-blue">76D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Biên lá — bất biến scale/rotation</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1a2a3a">
+                <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Hình thái</td>
+                <td style="padding:0.7rem 1rem;color:#c8ddf0">Morphology Stats</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-blue">3D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Diện tích, chu vi, tỷ lệ tròn</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1a2a3a">
+                <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Texture (cục bộ)</td>
+                <td style="padding:0.7rem 1rem;color:#c8ddf0">LBP (P=24, R=3, uniform)</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-purple">26D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Pattern vi cấu trúc bề mặt</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1a2a3a">
+                <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Texture (không gian)</td>
+                <td style="padding:0.7rem 1rem;color:#c8ddf0">GLCM (5 props × 4 dist)</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-purple">20D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Thống kê đồng xuất hiện pixel</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1a2a3a">
+                <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Màu sắc</td>
+                <td style="padding:0.7rem 1rem;color:#c8ddf0">Color Moments (HSV)</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-green">9D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Mean/Std/Skew trên H, S, V</td>
+              </tr>
+              <tr>
+                <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Gân lá</td>
+                <td style="padding:0.7rem 1rem;color:#c8ddf0">Vein Density + Angle Histogram</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-orange">9D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Mật độ và hướng gân lá</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Block 4: Công nghệ + Block 5: Chế độ truy vấn (2 cột) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+
+        <!-- Block 4: Công nghệ -->
+        <div class="glass panel" style="padding:1.75rem 2rem">
+          <h2 class="panel-title">🛠️ Công Nghệ Sử Dụng</h2>
+          <div style="margin-top:1rem">
+            <div style="margin-bottom:0.75rem">
+              <div style="font-size:0.75rem;color:#7a8499;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Backend / CV</div>
+              <div style="display:flex;flex-wrap:wrap;gap:0.4rem">
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">Python 3</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">Flask</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">OpenCV</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">scikit-image</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">pyefd</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">scipy</span>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:0.75rem;color:#7a8499;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Database / Infra</div>
+              <div style="display:flex;flex-wrap:wrap;gap:0.4rem">
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">PostgreSQL 16</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">pgvector</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">HNSW Index</span>
+                <span style="background:#1e3040;border:1px solid #2e5070;border-radius:6px;padding:0.3rem 0.7rem;font-size:0.82rem;color:#a8d1ff">Docker Compose</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Block 5: Chế độ truy vấn -->
+        <div class="glass panel" style="padding:1.75rem 2rem">
+          <h2 class="panel-title">🔍 Chế Độ Truy Vấn</h2>
+          <div style="margin-top:1rem;display:flex;flex-direction:column;gap:1rem">
+            <div style="background:linear-gradient(135deg,#1a2e1a,#243824);border:1px solid #3a6a3a;border-radius:10px;padding:1rem 1.25rem">
+              <div style="font-weight:600;color:#7edf7e;margin-bottom:0.4rem">⚖️ Weighted Fusion</div>
+              <p style="color:#8ab88a;font-size:0.875rem;margin:0;line-height:1.5">
+                Tính điểm similarity có trọng số cho từng nhóm đặc trưng, kết hợp thành 1 điểm tổng.
+                Phù hợp khi muốn điều chỉnh tầm quan trọng từng đặc trưng.
+              </p>
+            </div>
+            <div style="background:linear-gradient(135deg,#2a1a1a,#3a2424);border:1px solid #6a3a3a;border-radius:10px;padding:1rem 1.25rem">
+              <div style="font-weight:600;color:#df9e7e;margin-bottom:0.4rem">🔽 Cascaded Filtering</div>
+              <p style="color:#b88a7a;font-size:0.875rem;margin:0;line-height:1.5">
+                Lọc dần từ 1907 ảnh → 200 → 100 → 50 → 30 → Top-N.
+                Không cần normalize cross-metric, mỗi stage dùng distance metric riêng.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
   <!-- ── TAB: SEARCH ─────────────────────────────────────────────── -->
-  <section class="tab-content active" id="tab-search">
+  <section class="tab-content" id="tab-search">
     <div class="search-layout">
 
       <!-- Left panel: Upload -->
@@ -201,7 +370,7 @@
       <div class="chart-card glass">
         <h3 class="panel-title">📊 Phân bố ảnh theo loài</h3>
         <div class="chart-wrapper">
-          <canvas id="species-chart"></canvas>
+          <canvas id="species-chart" style="min-height:400px"></canvas>
         </div>
       </div>
 
@@ -307,6 +476,42 @@
         🔍 Debug ảnh này
         </button>
     </div>
+  </div>
+</div>
+
+<!-- ══ DEBUG MODAL ═══════════════════════════════════════════════════ -->
+<div class="debug-modal-overlay" id="debug-modal" style="display:none">
+  <div class="debug-modal-box glass">
+
+    <!-- Header -->
+    <div class="debug-modal-header">
+      <h2 class="debug-modal-title" id="debug-modal-title">🔬 Debug</h2>
+      <div class="debug-modal-actions">
+        <button class="btn btn-ghost btn-sm" id="debug-rerun-btn" title="Xoá cache và chạy lại">
+          🔄 Chạy lại
+        </button>
+        <button class="debug-modal-close-btn" id="debug-modal-close" title="Đóng">✕</button>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div class="debug-state-wrap" id="debug-loading" style="display:flex">
+      <div class="spinner"></div>
+      <p style="color:var(--text-muted);margin-top:12px">Đang trích xuất đặc trưng debug...<br>
+        <small style="font-size:11px;opacity:0.7">Lần đầu có thể mất 30–60 giây</small>
+      </p>
+    </div>
+
+    <!-- Error state -->
+    <div class="debug-state-wrap" id="debug-error" style="display:none">
+      <div style="font-size:40px">⚠️</div>
+      <p style="color:var(--danger);font-weight:600;margin:8px 0 4px">Chạy debug thất bại</p>
+      <pre id="debug-error-msg" style="color:var(--text-muted);font-size:11px;white-space:pre-wrap;max-width:600px;text-align:left;background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;overflow-y:auto;max-height:200px"></pre>
+    </div>
+
+    <!-- Content (tabs + images) -->
+    <div id="debug-content" style="display:none"></div>
+
   </div>
 </div>
 

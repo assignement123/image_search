@@ -1,18 +1,19 @@
 // static/js/main.js
 import { initLightbox } from './ui.js';
 import { initSearchTab } from './search.js';
-
 import { loadSpeciesList } from './browse.js';
 import { loadStats } from './stats.js';
 import { initManageTab, loadDbBadge } from './manage.js';
+import { initDebugModal } from './debug.js';
 
 document.addEventListener("DOMContentLoaded", () => {
     initTabs();
     initLightbox();
-    
+    initDebugModal();
+
     initSearchTab();
-    
-    loadDbBadge(); 
+
+    loadDbBadge();
     initManageTab();
 });
 
@@ -44,6 +45,8 @@ function initTabs() {
                     loadSpeciesList();
                 }
             }
+
+            // "overview" tab is static — no data loading required
         });
     });
 }

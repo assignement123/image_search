@@ -23,15 +23,25 @@ def get_stats():
             WHERE species IS NOT NULL GROUP BY species ORDER BY count DESC
         """)
         species_dist = [dict(r) for r in cur.fetchall()]
+
+        # Đọc dynamic từ bảng meta
+        cur.execute("SELECT key, value FROM meta")
+        meta_rows = cur.fetchall()
+        extract_params = {r["key"]: r["value"] for r in meta_rows}
+
+        # Fallback nếu bảng meta rỗng
+        if not extract_params:
+            extract_params = {
+                "dim_efd": "76", "dim_morphology": "3", "dim_lbp": "26",
+                "dim_glcm": "20", "dim_color": "9", "dim_vein": "9",
+                "harmonics": "20", "n_resample": "600", "glcm_levels": "64"
+            }
         
         return jsonify({
             "total_images": total_images,
             "total_species": total_species,
             "species_distribution": species_dist,
-            "extract_params": {
-                "harmonics": 20, "n_resample": 600, "glcm_levels": 64,
-                "dim_efd": 76, "dim_texture": 46, "dim_color": 9, "dim_vein": 9,
-            }
+            "extract_params": extract_params,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
