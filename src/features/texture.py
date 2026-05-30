@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from src.config import LBP_P, LBP_R, GLCM_DIST, GLCM_ANGLES, GLCM_LEVELS
+import os
 
 def get_leaf_mask(gray_img: np.ndarray) -> np.ndarray:
     _, mask = cv2.threshold(gray_img, 5, 255, cv2.THRESH_BINARY)
@@ -16,19 +17,36 @@ def extract_lbp(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     hist /= (hist.sum() + 1e-7)
     return hist
 
-def extract_glcm(gray_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    masked = cv2.bitwise_and(gray_img, gray_img, mask=mask)
-    eq = cv2.equalizeHist(masked)
-    resized = cv2.resize(eq, (256, 256))
+def extract_glcm(gray_masked: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """
+    Trích xuất đặc trưng GLCM.
+    - gray_masked: Ảnh xám đã bị ép đen phần nền từ vòng ngoài.
+    - mask: Mặt nạ nhị phân của chiếc lá.
+    """
+
+    x, y, w, h = cv2.boundingRect(mask)
+    if w == 0 or h == 0:
+        return np.zeros(20, dtype=np.float32)
+        
+    cropped_gray = gray_masked[y:y+h, x:x+w]
+    cropped_mask = mask[y:y+h, x:x+w]
     
-    q = np.clip((resized // (256 // GLCM_LEVELS)).astype(np.uint8), 0, GLCM_LEVELS - 1)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    eq = clahe.apply(cropped_gray)
+    
+    eq = cv2.bitwise_and(eq, eq, mask=cropped_mask)
+    
+    q = np.clip((eq // (256 // GLCM_LEVELS)).astype(np.uint8), 0, GLCM_LEVELS - 1)
     
     glcm = graycomatrix(q, distances=GLCM_DIST, angles=GLCM_ANGLES, levels=GLCM_LEVELS, symmetric=True, normed=True)
+    
+    glcm[0, 0, :, :] = 0 
+    
     props = ['contrast', 'homogeneity', 'energy', 'correlation', 'dissimilarity']
     raw_features = np.concatenate([graycoprops(glcm, p).mean(axis=1) for p in props]).astype(np.float32)
     
     norm = np.linalg.norm(raw_features)
-    if norm > 0:
+    if norm > 1e-7:
         normalized_features = raw_features / norm
     else:
         normalized_features = raw_features
