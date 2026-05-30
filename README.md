@@ -54,8 +54,52 @@ DB_PORT=5432
 DB_NAME=leaf_db
 DB_USER=admin
 DB_PASS=admin
-DATA_DIR=./leaves_data
+DATA_DIR=/path/to/your/leaves_data
 ```
+
+`DATA_DIR` nên trỏ tới thư mục ảnh bạn tải từ Google Drive về máy. Repo này không còn chứa sẵn dataset `leaves_data/`.
+
+### 4) Tạo thư mục dữ liệu và tải ảnh từ Google Drive
+
+Dataset được lưu ở folder Google Drive sau:
+
+```text
+https://drive.google.com/drive/u/0/folders/1nWr-Y5LjuzWuagGYNg5Hjeg9IsVq75b1
+```
+
+Bạn có thể dùng `gdown` để tải cả folder này về máy. Lệnh dưới đây sẽ tạo sẵn thư mục đích và tải dữ liệu vào đó.
+
+#### Linux / macOS
+
+```bash
+mkdir -p ~/datasets/leaves_data
+python3 -m pip install --upgrade gdown
+cd ~/datasets/leaves_data
+gdown --folder "https://drive.google.com/drive/folders/1nWr-Y5LjuzWuagGYNg5Hjeg9IsVq75b1"
+```
+
+Sau đó cập nhật `.env`:
+
+```env
+DATA_DIR=/home/<your-user>/datasets/leaves_data
+```
+
+#### Windows PowerShell
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\datasets\leaves_data" | Out-Null
+py -m pip install --upgrade gdown
+Set-Location "$HOME\datasets\leaves_data"
+gdown --folder "https://drive.google.com/drive/folders/1nWr-Y5LjuzWuagGYNg5Hjeg9IsVq75b1"
+```
+
+Sau đó cập nhật `.env`:
+
+```env
+DATA_DIR=C:\Users\<your-user>\datasets\leaves_data
+```
+
+Nếu `gdown` báo lỗi quyền truy cập, hãy kiểm tra folder Google Drive đã được chia sẻ công khai hoặc đăng nhập đúng tài khoản Google.
 
 ## Khởi động Database
 
@@ -171,8 +215,7 @@ image_search/
 │   ├── etl_pipeline.py
 │   └── pipeline.py
 ├── static/
-├── templates/
-└── leaves_data/
+└── templates/
 ```
 
 ## Nếu bị lỗi
