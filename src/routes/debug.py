@@ -1,8 +1,9 @@
 # src/routes/debug.py
 import os
+import tempfile
 import subprocess
 from pathlib import Path
-from flask import Blueprint, jsonify, send_file
+from flask import Blueprint, jsonify, send_file, request
 
 debug_bp = Blueprint('debug', __name__)
 
@@ -92,6 +93,67 @@ def debug_image(filename):
         "filename": safe_name,
         "groups": build_debug_groups(stem, pngs)
     })
+
+
+@debug_bp.route("/api/debug-upload", methods=["POST"])
+def debug_upload():
+    if "file" not in request.files:
+        return jsonify({"error": "Không có file"}), 400
+
+    file = request.files["file"]
+    suffix = Path(file.filename).suffix or ".jpg"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+
+    stem = Path(tmp_path).stem
+    out_dir = DEBUG_OUTPUT_DIR / stem
+    out_dir.mkdir(exist_ok=True)
+
+    try:
+        script_path = str(BASE_DIR / "src" / "debug" / "run_debug.py")
+        if not os.path.exists(script_path):
+            return jsonify({"error": f"Không tìm thấy debug script: {script_path}"}), 500
+
+        result = subprocess.run(
+            ["python", script_path, tmp_path, "--out", str(out_dir)],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=180,
+        )
+
+        if result.returncode != 0:
+            return jsonify({
+                "error": "Debug script chạy thất bại",
+                "stderr": result.stderr[:1000],
+                "stdout": result.stdout[:500]
+            }), 500
+
+        pngs = list(out_dir.glob("*.png"))
+        if not pngs:
+            return jsonify({"error": "Không tạo được file debug nào"}), 500
+
+        return jsonify({
+            "status": "done",
+            "cached": False,
+            "filename": Path(file.filename).name or "input.jpg",
+            "stem": stem,
+            "groups": build_debug_groups(stem, pngs),
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Debug script chạy quá lâu (timeout 180s)"}), 500
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print("[DEBUG UPLOAD EXCEPTION]\n", error_detail)
+        return jsonify({"error": str(e), "detail": error_detail}), 500
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 @debug_bp.route("/api/debug-image/<stem>/<img>")

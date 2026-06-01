@@ -2,7 +2,6 @@
 import os
 import tempfile
 import traceback
-import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +10,6 @@ from pgvector.psycopg2 import register_vector
 from flask import Blueprint, request, jsonify
 
 from src.db.postgres_repo import connect_db
-from src.routes.debug import DEBUG_OUTPUT_DIR, build_debug_groups
 from src.pipeline import process_single_image
 
 search_bp = Blueprint('search', __name__)
@@ -42,31 +40,6 @@ def _load_gamma_from_db(cur) -> dict:
     )
     return cur.fetchone() or {}
 
-
-def _run_debug_for_image(image_path: str, out_dir: Path) -> list:
-    script_path = Path(__file__).resolve().parent.parent / "debug" / "run_debug.py"
-    if not script_path.exists():
-        raise FileNotFoundError(f"Không tìm thấy debug script: {script_path}")
-
-    result = subprocess.run(
-        ["python", str(script_path), image_path, "--out", str(out_dir)],
-        cwd=str(Path(__file__).resolve().parent.parent.parent),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=180,
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError((result.stderr or result.stdout or "Debug script chạy thất bại").strip())
-
-    pngs = list(out_dir.glob("*.png"))
-    if not pngs:
-        raise RuntimeError("Không tạo được file debug nào")
-
-    return build_debug_groups(out_dir.name, pngs)
-
 @search_bp.route("/api/search", methods=["POST"])
 def search():
     if "file" not in request.files:
@@ -79,31 +52,8 @@ def search():
         file.save(tmp.name)
         tmp_path = tmp.name
 
-    debug_requested = str(request.form.get("debug", "")).lower() in {"1", "true", "yes", "on"}
-    debug_payload = None
-
     try:
         feats = process_single_image(tmp_path)
-
-        if debug_requested:
-            debug_stem = Path(tmp_path).stem
-            debug_out_dir = DEBUG_OUTPUT_DIR / debug_stem
-            debug_out_dir.mkdir(exist_ok=True)
-            try:
-                debug_payload = {
-                    "filename": Path(file.filename).name or "input.jpg",
-                    "stem": debug_stem,
-                    "cached": False,
-                    "groups": _run_debug_for_image(tmp_path, debug_out_dir),
-                }
-            except Exception as debug_error:
-                print("\n⚠️ LỖI DEBUG ẢNH INPUT:")
-                traceback.print_exc()
-                debug_payload = {
-                    "filename": Path(file.filename).name or "input.jpg",
-                    "stem": Path(tmp_path).stem,
-                    "error": str(debug_error),
-                }
 
         w_efd = float(request.form.get("w_efd", 0.4))
         w_morphology = float(request.form.get("w_morphology", 0.0))
@@ -199,11 +149,7 @@ def search():
             "image_url": f"/api/image/{r['filename']}"
         } for r in rows]
 
-        response = {"results": results, "count": len(results)}
-        if debug_payload is not None:
-            response["debug"] = debug_payload
-
-        return jsonify(response)
+        return jsonify({"results": results, "count": len(results)})
     except Exception as e:
         print("\n❌ LỖI TẠI API SEARCH:")
         traceback.print_exc()
