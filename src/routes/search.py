@@ -54,26 +54,19 @@ def search():
 
     try:
         feats = process_single_image(tmp_path)
-    except Exception as e:
-        print("\n❌ LỖI TẠI API SEARCH:")
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 422
-    finally:
-        os.unlink(tmp_path)
 
-    w_efd = float(request.form.get("w_efd", 0.4))
-    w_morphology = float(request.form.get("w_morphology", 0.0))
-    w_texture = request.form.get("w_texture")
-    w_texture = float(w_texture) if w_texture is not None else 0.3
-    w_lbp = request.form.get("w_lbp")
-    w_lbp = float(w_lbp) if w_lbp is not None else w_texture * 0.5
-    w_glcm = request.form.get("w_glcm")
-    w_glcm = float(w_glcm) if w_glcm is not None else w_texture * 0.5
-    w_color = float(request.form.get("w_color", 0.2))
-    w_vein = float(request.form.get("w_vein", 0.1))
-    top_k = int(request.form.get("top_k", 10))
+        w_efd = float(request.form.get("w_efd", 0.4))
+        w_morphology = float(request.form.get("w_morphology", 0.0))
+        w_texture = request.form.get("w_texture")
+        w_texture = float(w_texture) if w_texture is not None else 0.3
+        w_lbp = request.form.get("w_lbp")
+        w_lbp = float(w_lbp) if w_lbp is not None else w_texture * 0.5
+        w_glcm = request.form.get("w_glcm")
+        w_glcm = float(w_glcm) if w_glcm is not None else w_texture * 0.5
+        w_color = float(request.form.get("w_color", 0.2))
+        w_vein = float(request.form.get("w_vein", 0.1))
+        top_k = int(request.form.get("top_k", 10))
 
-    try:
         conn = connect_db()
         register_vector(conn)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -158,6 +151,10 @@ def search():
 
         return jsonify({"results": results, "count": len(results)})
     except Exception as e:
+        print("\n❌ LỖI TẠI API SEARCH:")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
         if 'conn' in locals() and conn: conn.close()
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)

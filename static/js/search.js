@@ -1,6 +1,7 @@
 // static/js/search.js
-import { searchLeaf } from './api.js';
+import { searchLeaf, debugUploadImage } from './api.js';
 import { formatSpecies, openLightbox } from './ui.js';
+import { openDebugModalFromData } from './debug.js';
 
 let selectedFile = null;
 
@@ -22,6 +23,7 @@ function initDropzone() {
     const fileInput = document.getElementById("file-input");
     const selectBtn = document.getElementById("select-btn");
     const clearBtn = document.getElementById("clear-btn");
+    const debugBtn = document.getElementById("input-debug-btn");
     const dzInner = document.getElementById("dropzone-inner");
     const previewWrap = document.getElementById("preview-wrapper");
     const previewImg = document.getElementById("preview-img");
@@ -31,6 +33,7 @@ function initDropzone() {
 
     selectBtn.addEventListener("click", () => fileInput.click());
     clearBtn.addEventListener("click", clearFile);
+    if (debugBtn) debugBtn.addEventListener("click", runInputDebug);
 
     fileInput.addEventListener("change", () => {
         if (fileInput.files[0]) setFile(fileInput.files[0]);
@@ -63,6 +66,7 @@ function initDropzone() {
         dzInner.style.display = "none";
         previewWrap.style.display = "block";
         searchBtn.disabled = false;
+        if (debugBtn) debugBtn.disabled = false;
     }
 
     function clearFile() {
@@ -72,6 +76,7 @@ function initDropzone() {
         dzInner.style.display = "block";
         previewWrap.style.display = "none";
         searchBtn.disabled = true;
+        if (debugBtn) debugBtn.disabled = true;
         showSearchEmpty();
     }
 }
@@ -150,6 +155,10 @@ async function runSearch() {
         document.getElementById("results-count").textContent = `${data.count} kết quả`;
         document.getElementById("results-header").style.display = "flex";
 
+        if (data.debug) {
+            openDebugModalFromData(data.debug);
+        }
+
     } catch (err) {
         document.getElementById("search-loading").style.display = "none";
         showSearchError(err.message || "Không thể kết nối đến server. Đảm bảo Flask đang chạy.");
@@ -157,6 +166,34 @@ async function runSearch() {
         // Reset nút
         btn.disabled = false;
         txt.textContent = "🔍 Tìm kiếm";
+    }
+}
+
+async function runInputDebug() {
+    if (!selectedFile) return;
+
+    const debugBtn = document.getElementById("input-debug-btn");
+    const previousText = debugBtn ? debugBtn.textContent : "";
+    if (debugBtn) {
+        debugBtn.disabled = true;
+        debugBtn.textContent = "⏳ Đang debug...";
+    }
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+
+    try {
+        const data = await debugUploadImage(formData);
+        if (data) {
+            openDebugModalFromData(data);
+        }
+    } catch (err) {
+        showSearchError(err.message || "Không thể debug ảnh input.");
+    } finally {
+        if (debugBtn) {
+            debugBtn.disabled = false;
+            debugBtn.textContent = previousText || "🔬 Debug ảnh input";
+        }
     }
 }
 
