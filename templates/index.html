@@ -25,6 +25,7 @@
     <nav class="nav" id="nav">
       <button class="nav-btn active" data-tab="overview" id="nav-overview">📖 Giới thiệu</button>
       <button class="nav-btn" data-tab="search" id="nav-search">🔍 Tìm kiếm</button>
+      <button class="nav-btn" data-tab="cascaded" id="nav-cascaded"> Cascaded</button>
       <button class="nav-btn" data-tab="browse" id="nav-browse">🌿 Duyệt loài</button>
       <button class="nav-btn" data-tab="stats" id="nav-stats">📊 Thống kê</button>
       <button class="nav-btn" data-tab="manage" id="nav-manage">⚙️ Quản lý</button>
@@ -306,6 +307,164 @@
       </div>
     </div>
   </section>
+
+<section class="tab-content" id="tab-cascaded">
+  <div class="search-layout">
+
+    <!-- ── LEFT PANEL ── -->
+    <aside class="search-panel glass">
+      <h2 class="panel-title">🔽 Cascaded Filtering</h2>
+
+      <!-- Upload -->
+      <div class="dropzone" id="cs-dropzone">
+        <div class="dropzone-inner" id="cs-dropzone-inner">
+          <div class="dropzone-icon">🍃</div>
+          <p class="dropzone-text">Kéo thả ảnh vào đây</p>
+          <p class="dropzone-sub">hoặc click để chọn file</p>
+          <input type="file" id="cs-file-input" accept="image/*" hidden />
+          <button class="btn btn-primary" id="cs-select-btn">Chọn ảnh</button>
+        </div>
+        <div class="preview-wrapper" id="cs-preview-wrapper" style="display:none">
+          <img id="cs-preview-img" src="" alt="Preview" class="preview-img" />
+          <button class="btn btn-ghost btn-sm" id="cs-clear-btn">✕ Xóa</button>
+        </div>
+      </div>
+
+      <!-- Funnel sizes -->
+      <div class="weights-section">
+        <h3 class="weights-title">🔽 Kích thước phễu lọc</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1rem">
+
+          <!-- Tầng 1: EFD -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:#4a90d9;flex-shrink:0"></span>
+              <span style="font-size:0.85rem;color:var(--text-primary);font-weight:500">EFD</span>
+              <span style="font-size:0.7rem;padding:1px 7px;border-radius:999px;
+                           background:#4a90d920;border:1px solid #4a90d960;
+                           color:#4a90d9;white-space:nowrap">Hình dạng</span>
+            </div>
+            <input type="number" id="cs-top1" value="200" min="10" max="5000"
+              style="width:68px;background:var(--bg-card);border:1.5px solid #4a90d980;color:#4a90d9;font-size:0.9rem;padding:4px 8px;border-radius:6px;text-align:right;font-weight:700;outline:none;"/>
+          </div>
+
+          <!-- Tầng 2: Morphology -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:#818cf8;flex-shrink:0"></span>
+              <span style="font-size:0.85rem;color:var(--text-primary);font-weight:500">Morphology</span>
+              <span style="font-size:0.7rem;padding:1px 7px;border-radius:999px;
+                           background:#818cf820;border:1px solid #818cf860;
+                           color:#818cf8;white-space:nowrap">Hình thái</span>
+            </div>
+            <input type="number" id="cs-top2" value="100" min="10" max="1000"
+              style="width:68px;background:var(--bg-card);border:1.5px solid #818cf880;color:#818cf8;font-size:0.9rem;padding:4px 8px;border-radius:6px;text-align:right;font-weight:700;outline:none;"/>
+          </div>
+
+          <!-- Tầng 3: LBP -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:#a78bfa;flex-shrink:0"></span>
+              <span style="font-size:0.85rem;color:var(--text-primary);font-weight:500">LBP</span>
+              <span style="font-size:0.7rem;padding:1px 7px;border-radius:999px;
+                           background:#a78bfa20;border:1px solid #a78bfa60;
+                           color:#a78bfa;white-space:nowrap">Kết cấu</span>
+            </div>
+            <input type="number" id="cs-top3" value="50" min="5" max="500"
+              style="width:68px;background:var(--bg-card);border:1.5px solid #a78bfa80;color:#a78bfa;font-size:0.9rem;padding:4px 8px;border-radius:6px;text-align:right;font-weight:700;outline:none;"/>
+          </div>
+
+          <!-- Tầng 4: GLCM -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:#22d3ee;flex-shrink:0"></span>
+              <span style="font-size:0.85rem;color:var(--text-primary);font-weight:500">GLCM</span>
+              <span style="font-size:0.7rem;padding:1px 7px;border-radius:999px;
+                           background:#22d3ee20;border:1px solid #22d3ee60;
+                           color:#22d3ee;white-space:nowrap">Kết cấu</span>
+            </div>
+            <input type="number" id="cs-top4" value="30" min="5" max="200"
+              style="width:68px;background:var(--bg-card);border:1.5px solid #22d3ee80;color:#22d3ee;font-size:0.9rem;padding:4px 8px;border-radius:6px;text-align:right;font-weight:700;outline:none;"/>
+          </div>
+
+          <!-- Tầng 5: Vein -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:#fb923c;flex-shrink:0"></span>
+              <span style="font-size:0.85rem;color:var(--text-primary);font-weight:500">Vein</span>
+              <span style="font-size:0.7rem;padding:1px 7px;border-radius:999px;
+                           background:#fb923c20;border:1px solid #fb923c60;
+                           color:#fb923c;white-space:nowrap">Gân lá</span>
+            </div>
+            <input type="number" id="cs-top5" value="20" min="5" max="100"
+              style="width:68px;background:var(--bg-card);border:1.5px solid #fb923c80;color:#fb923c;font-size:0.9rem;padding:4px 8px;border-radius:6px;text-align:right;font-weight:700;outline:none;"/>
+          </div>
+
+          <!-- Tầng 6: Color -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:#f472b6;flex-shrink:0"></span>
+              <span style="font-size:0.85rem;color:var(--text-primary);font-weight:500">Color</span>
+              <span style="font-size:0.7rem;padding:1px 7px;border-radius:999px;
+                           background:#f472b620;border:1px solid #f472b660;
+                           color:#f472b6;white-space:nowrap">Màu sắc</span>
+            </div>
+            <input type="number" id="cs-top6" value="10" min="1" max="50"
+              style="width:68px;background:var(--bg-card);border:1.5px solid #f472b680;color:#f472b6;font-size:0.9rem;padding:4px 8px;border-radius:6px;text-align:right;font-weight:700;outline:none;"/>
+          </div>
+
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="cs-search-btn" disabled>
+        <span id="cs-search-btn-text">🔍 Tìm kiếm cascaded</span>
+      </button>
+    </aside>
+
+    <!-- ── RIGHT PANEL ── -->
+    <div class="results-area">
+
+      <!-- Funnel bar chart -->
+      <div class="glass" id="cs-funnel-wrap" style="display:none;padding:1.25rem 1.5rem;margin-bottom:1rem;border-radius:12px">
+        <h3 class="panel-title" style="margin-bottom:1rem">📉 Phễu lọc — số ảnh qua từng tầng</h3>
+        <div id="cs-funnel-bars"
+             style="display:flex;align-items:flex-end;gap:6px;height:72px;padding-bottom:4px"></div>
+        <div id="cs-funnel-labels"
+             style="display:flex;gap:6px;margin-top:4px;font-size:0.75rem;color:var(--text-muted)"></div>
+      </div>
+
+      <!-- Header -->
+      <div class="results-header" id="cs-results-header" style="display:none">
+        <h2 class="panel-title">📋 Kết quả cascaded</h2>
+        <span class="results-count" id="cs-results-count"></span>
+      </div>
+
+      <!-- Empty -->
+      <div class="empty-state" id="cs-empty">
+        <div class="empty-icon">🔎</div>
+        <p>Upload ảnh lá để bắt đầu tìm kiếm cascaded</p>
+        <p class="empty-sub">Lọc dần qua 6 tầng: EFD → Morph → LBP → GLCM → Vein → Color</p>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading" id="cs-loading" style="display:none">
+        <div class="spinner"></div>
+        <p>Đang lọc qua các tầng đặc trưng...</p>
+      </div>
+
+      <!-- Error -->
+      <div class="error-state" id="cs-error" style="display:none">
+        <div class="error-icon">⚠️</div>
+        <p id="cs-error-msg"></p>
+      </div>
+
+      <!-- Results grid -->
+      <div class="results-grid" id="cs-results-grid"></div>
+
+    </div>
+  </div>
+</section>
+
 
   <!-- ── TAB: BROWSE ─────────────────────────────────────────────── -->
   <section class="tab-content" id="tab-browse">
