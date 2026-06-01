@@ -252,6 +252,24 @@ body > * { position: relative; z-index: 1; }
   color: var(--text-muted);
 }
 
+.debug-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.debug-toggle-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ── Results ────────────────────────────────────────────────────── */
 .results-area { min-height: 400px; }
 .results-header {

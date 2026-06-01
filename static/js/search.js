@@ -1,6 +1,7 @@
 // static/js/search.js
 import { searchLeaf } from './api.js';
 import { formatSpecies, openLightbox } from './ui.js';
+import { openDebugModalFromData } from './debug.js';
 
 let selectedFile = null;
 
@@ -141,6 +142,11 @@ async function runSearch() {
     formData.append("w_color", weights.w_color);
     formData.append("w_vein", weights.w_vein);
 
+    const debugToggle = document.getElementById("search-debug-toggle");
+    if (debugToggle && debugToggle.checked) {
+        formData.append("debug", "1");
+    }
+
     try {
         // Gọi hàm fetch từ api.js
         const data = await searchLeaf(formData);
@@ -149,6 +155,10 @@ async function runSearch() {
         renderResults(data.results);
         document.getElementById("results-count").textContent = `${data.count} kết quả`;
         document.getElementById("results-header").style.display = "flex";
+
+        if (data.debug) {
+            openDebugModalFromData(data.debug);
+        }
 
     } catch (err) {
         document.getElementById("search-loading").style.display = "none";

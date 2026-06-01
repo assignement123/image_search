@@ -5,12 +5,16 @@
 // ──────────────────────────────────────────────────────────────────────
 
 let _currentFilename = null;
+let _currentDebugMode = "file";
 
 /** Mở modal debug và gọi API */
 export async function openDebugModal(filename) {
+    _currentDebugMode = "file";
     _currentFilename = filename;
     const modal = document.getElementById("debug-modal");
     const stem  = filename.replace(/\.[^.]+$/, "");
+
+    document.getElementById("debug-rerun-btn").style.display = "inline-flex";
 
     // Reset UI
     modal.style.display = "flex";
@@ -34,6 +38,28 @@ export async function openDebugModal(filename) {
     }
 }
 
+/** Mở modal debug từ payload có sẵn trong response search */
+export function openDebugModalFromData(debugData) {
+    _currentDebugMode = "inline";
+    _currentFilename = debugData.filename || null;
+
+    const modal = document.getElementById("debug-modal");
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+
+    document.getElementById("debug-rerun-btn").style.display = "none";
+
+    const title = debugData.filename || "Ảnh input";
+    document.getElementById("debug-modal-title").textContent = `🔬 Debug: ${title}`;
+
+    if (debugData.error) {
+        _setDebugState("error", debugData.error);
+        return;
+    }
+
+    _renderGroups(debugData.groups, debugData.stem || title.replace(/\.[^.]+$/, ""), debugData.cached);
+}
+
 /** Đóng modal */
 export function closeDebugModal() {
     document.getElementById("debug-modal").style.display = "none";
@@ -42,7 +68,7 @@ export function closeDebugModal() {
 
 /** Xoá cache và chạy lại */
 async function rerunDebug() {
-    if (!_currentFilename) return;
+    if (!_currentFilename || _currentDebugMode !== "file") return;
     const stem = _currentFilename.replace(/\.[^.]+$/, "");
     await fetch(`/api/debug-clear/${encodeURIComponent(stem)}`, { method: "DELETE" });
     await openDebugModal(_currentFilename);
