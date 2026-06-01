@@ -5,11 +5,13 @@ import { loadSpeciesList } from './browse.js';
 import { loadStats } from './stats.js';
 import { initManageTab, loadDbBadge } from './manage.js';
 import { initDebugModal } from './debug.js';
+import { initSearchDebugModal } from './search_debug.js';
 
 document.addEventListener("DOMContentLoaded", () => {
     initTabs();
     initLightbox();
     initDebugModal();
+    initSearchDebugModal();
 
     initSearchTab();
 
