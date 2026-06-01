@@ -16,7 +16,8 @@ DEBUG_OUTPUT_DIR.mkdir(exist_ok=True)
 DEBUG_GROUPS = [
     ("preprocess", "🔧 Tiền xử lý",       "step1_"),
     ("shape",      "📐 Hình dạng (EFD)",   "shape_"),
-    ("texture",    "🔲 Texture (LBP+GLCM)","step2b_"),
+    ("lbp",        "🔳 LBP",              "lbp_"),
+    ("glcm",       "🧩 GLCM",             "glcm_"),
     ("color",      "🎨 Color Moments",     "color_"),
     ("vein",       "🌿 Gân lá",            "vein_"),
 ]
