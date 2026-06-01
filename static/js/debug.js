@@ -1,7 +1,8 @@
 // static/js/debug.js
 // ──────────────────────────────────────────────────────────────────────
-// Debug Modal — hiển thị kết quả debug theo 4 nhóm (preprocess/shape/
-//               texture/color/vein) ngay trong app, không redirect trang.
+// Debug Modal — hiển thị kết quả debug theo các nhóm
+//               (preprocess/shape/lbp/glcm/color/vein) ngay trong app,
+//               không redirect trang.
 // ──────────────────────────────────────────────────────────────────────
 
 let _currentFilename = null;

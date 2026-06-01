@@ -20,7 +20,7 @@ print(f"[DEBUG] BASE_DIR = {BASE_DIR}")
 try:
     from src.debug.preprocess import debug_preprocess
     from src.debug.shape import debug_shape          # ← lỗi ở đây
-    from src.debug.texture import debug_texture
+    from src.debug.texture import debug_lbp, debug_glcm
     from src.debug.color import debug_color_moments
     from src.debug.vein import debug_vein_features
 
@@ -59,7 +59,8 @@ def main():
         # Gọi các hàm debug
         debug_preprocess(args.image, img, gray, mask, contour, leaf_area, args.out)
         debug_shape(contour, args.out)
-        debug_texture(gray_masked, mask, args.out)
+        debug_lbp(gray, mask, args.out)
+        debug_glcm(gray_masked, mask, args.out)
         debug_color_moments(img, mask, args.out)
         debug_vein_features(img, mask, leaf_area, args.out)
 
