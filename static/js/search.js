@@ -1,7 +1,8 @@
 // static/js/search.js
-import { searchLeaf, debugUploadImage } from './api.js';
+import { searchLeaf, debugUploadImage, debugSearchLeaf } from './api.js';
 import { formatSpecies, openLightbox } from './ui.js';
 import { openDebugModalFromData } from './debug.js';
+import { openSearchDebugLoading, openSearchDebugModal } from './search_debug.js';
 
 let selectedFile = null;
 
@@ -24,6 +25,7 @@ function initDropzone() {
     const selectBtn = document.getElementById("select-btn");
     const clearBtn = document.getElementById("clear-btn");
     const debugBtn = document.getElementById("input-debug-btn");
+    const searchDebugBtn = document.getElementById("search-debug-btn");
     const dzInner = document.getElementById("dropzone-inner");
     const previewWrap = document.getElementById("preview-wrapper");
     const previewImg = document.getElementById("preview-img");
@@ -34,6 +36,7 @@ function initDropzone() {
     selectBtn.addEventListener("click", () => fileInput.click());
     clearBtn.addEventListener("click", clearFile);
     if (debugBtn) debugBtn.addEventListener("click", runInputDebug);
+    if (searchDebugBtn) searchDebugBtn.addEventListener("click", runSearchDebug);
 
     fileInput.addEventListener("change", () => {
         if (fileInput.files[0]) setFile(fileInput.files[0]);
@@ -67,6 +70,7 @@ function initDropzone() {
         previewWrap.style.display = "block";
         searchBtn.disabled = false;
         if (debugBtn) debugBtn.disabled = false;
+        if (searchDebugBtn) searchDebugBtn.disabled = false;
     }
 
     function clearFile() {
@@ -77,6 +81,7 @@ function initDropzone() {
         previewWrap.style.display = "none";
         searchBtn.disabled = true;
         if (debugBtn) debugBtn.disabled = true;
+        if (searchDebugBtn) searchDebugBtn.disabled = true;
         showSearchEmpty();
     }
 }
@@ -193,6 +198,42 @@ async function runInputDebug() {
         if (debugBtn) {
             debugBtn.disabled = false;
             debugBtn.textContent = previousText || "🔬 Debug ảnh input";
+        }
+    }
+}
+
+async function runSearchDebug() {
+    if (!selectedFile) return;
+
+    const debugBtn = document.getElementById("search-debug-btn");
+    const previousText = debugBtn ? debugBtn.textContent : "";
+    if (debugBtn) {
+        debugBtn.disabled = true;
+        debugBtn.textContent = "⏳ Đang debug search...";
+    }
+
+    openSearchDebugLoading();
+
+    const weights = getWeights();
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("top_k", weights.top_k);
+    formData.append("w_efd", weights.w_efd);
+    formData.append("w_morphology", weights.w_morphology);
+    formData.append("w_lbp", weights.w_lbp);
+    formData.append("w_glcm", weights.w_glcm);
+    formData.append("w_color", weights.w_color);
+    formData.append("w_vein", weights.w_vein);
+
+    try {
+        const data = await debugSearchLeaf(formData);
+        openSearchDebugModal(data);
+    } catch (err) {
+        openSearchDebugModal({ error: err.message || "Không thể debug search." });
+    } finally {
+        if (debugBtn) {
+            debugBtn.disabled = false;
+            debugBtn.textContent = previousText || "🔎 Debug search";
         }
     }
 }

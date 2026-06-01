@@ -281,6 +281,10 @@
         <button class="btn btn-ghost btn-full" id="input-debug-btn" disabled style="margin-top:10px">
           🔬 Debug ảnh input
         </button>
+
+        <button class="btn btn-ghost btn-full" id="search-debug-btn" disabled style="margin-top:10px">
+          🔎 Debug search
+        </button>
       </aside>
 
       <!-- Right panel: Results -->
@@ -480,6 +484,31 @@
         🔍 Debug ảnh này
         </button>
     </div>
+  </div>
+</div>
+
+<!-- ══ SEARCH DEBUG MODAL ═══════════════════════════════════════════ -->
+<div class="debug-modal-overlay" id="search-debug-modal" style="display:none">
+  <div class="debug-modal-box glass">
+    <div class="debug-modal-header">
+      <h2 class="debug-modal-title" id="search-debug-title">🔎 Debug search</h2>
+      <div class="debug-modal-actions">
+        <button class="debug-modal-close-btn" id="search-debug-close" title="Đóng">✕</button>
+      </div>
+    </div>
+
+    <div class="debug-state-wrap" id="search-debug-loading" style="display:flex">
+      <div class="spinner"></div>
+      <p style="color:var(--text-muted);margin-top:12px">Đang phân tích breakdown điểm search...</p>
+    </div>
+
+    <div class="debug-state-wrap" id="search-debug-error" style="display:none">
+      <div style="font-size:40px">⚠️</div>
+      <p style="color:var(--danger);font-weight:600;margin:8px 0 4px">Debug search thất bại</p>
+      <pre id="search-debug-error-msg" style="color:var(--text-muted);font-size:11px;white-space:pre-wrap;max-width:760px;text-align:left;background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;overflow-y:auto;max-height:220px"></pre>
+    </div>
+
+    <div id="search-debug-content" style="display:none"></div>
   </div>
 </div>
 
