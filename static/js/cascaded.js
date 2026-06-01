@@ -1,5 +1,4 @@
 // static/js/cascaded.js
-
 export function initCascadedTab() {
   // Guard: nếu tab chưa có trong DOM thì thoát an toàn
   const selBtn = document.getElementById("cs-select-btn");
@@ -159,8 +158,8 @@ export function initCascadedTab() {
         }).join("");
 
         return `
-        <div class="result-card"
-             onclick="openLightbox('${r.image_url}','${r.filename}','${r.species || ""}','')">
+        <div class="result-card" style="cursor:pointer"
+             onclick="openDebugModal('${r.filename}')">
           <div class="result-img-wrap">
             <img src="${r.image_url}" alt="${r.species}" class="result-img"
                  onerror="this.style.display='none';
