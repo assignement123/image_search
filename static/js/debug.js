@@ -13,7 +13,7 @@ export async function openDebugModal(filename) {
     _currentDebugMode = "file";
     _currentFilename = filename;
     const modal = document.getElementById("debug-modal");
-    const stem  = filename.replace(/\.[^.]+$/, "");
+    const stem = filename.replace(/\.[^.]+$/, "");
 
     document.getElementById("debug-rerun-btn").style.display = "inline-flex";
 
@@ -25,7 +25,7 @@ export async function openDebugModal(filename) {
         `🔬 Debug: ${filename}`;
 
     try {
-        const res  = await fetch(`/api/debug/${encodeURIComponent(filename)}`);
+        const res = await fetch(`/api/debug/${encodeURIComponent(filename)}`);
         const data = await res.json();
 
         if (!res.ok || data.error) {
@@ -79,15 +79,14 @@ async function rerunDebug() {
 
 function _setDebugState(state, msg = "") {
     document.getElementById("debug-loading").style.display = state === "loading" ? "flex" : "none";
-    document.getElementById("debug-error").style.display   = state === "error"   ? "flex" : "none";
-    document.getElementById("debug-content").style.display = state === "done"    ? "block" : "none";
+    document.getElementById("debug-error").style.display = state === "error" ? "flex" : "none";
+    document.getElementById("debug-content").style.display = state === "done" ? "block" : "none";
 
     if (state === "error") {
         document.getElementById("debug-error-msg").textContent = msg;
     }
 }
 
-function _renderGroups(groups, stem, cached) {
 function _renderGroups(groups, stem, cached, morphology) {
     _setDebugState("done");
     const container = document.getElementById("debug-content");
@@ -105,63 +104,57 @@ function _renderGroups(groups, stem, cached, morphology) {
 
     // Badge cached/fresh
     const badge = cached
-        function _renderMorphologySummary(morphology) {
-            if (!morphology || !Array.isArray(morphology.vector)) return null;
-
-            const wrap = document.createElement("div");
-            wrap.className = "debug-summary-card";
-            wrap.style.cssText = [
-                "margin:0 0 16px",
-                "padding:16px 18px",
-                "border:1px solid rgba(59,130,246,0.25)",
-                "border-radius:16px",
-                "background:linear-gradient(135deg, rgba(16,26,46,0.96), rgba(26,42,70,0.92))",
-                "box-shadow:0 10px 30px rgba(0,0,0,0.18)",
-            ].join(";");
-
-            const rows = morphology.vector.map((value, index) => {
-                const label = morphology.display_labels?.[index] || morphology.labels?.[index] || `Value ${index + 1}`;
-                const meaning = morphology.meanings?.[index] || "";
-                return `
-                    <tr>
-                        <td style="padding:10px 12px;color:#a8d1ff;font-weight:600">${label}</td>
-                        <td style="padding:10px 12px;color:#e6f1ff;font-family:monospace">${_formatNumber(value)}</td>
-                        <td style="padding:10px 12px;color:#8a9dc0">${meaning}</td>
+    function _renderMorphologySummary(morphology) {
+        if (!morphology || !Array.isArray(morphology.vector)) return null;
+        const wrap = document.createElement("div");
+        wrap.className = "debug-summary-card";
+        wrap.style.cssText = [
+            "margin:0 0 16px",
+            "padding:16px 18px",
+            "border:1px solid rgba(59,130,246,0.25)",
+            "border-radius:16px",
+            "background:linear-gradient(135deg, rgba(16,26,46,0.96), rgba(26,42,70,0.92))",
+            "box-shadow:0 10px 30px rgba(0,0,0,0.18)",
+        ].join(";");
+        const rows = morphology.vector.map((value, index) => {
+            const label = morphology.display_labels?.[index] || morphology.labels?.[index] || `Value ${index + 1}`;
+            const meaning = morphology.meanings?.[index] || "";
+            return `
+            <tr>
+                <td style="padding:10px 12px;color:#a8d1ff;font-weight:600">${label}</td>
+                <td style="padding:10px 12px;color:#e6f1ff;font-family:monospace">${_formatNumber(value)}</td>
+                <td style="padding:10px 12px;color:#8a9dc0">${meaning}</td>
+            </tr>
+        `;
+        }).join("");
+        wrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap">
+            <div>
+                <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7ecfff;font-weight:700">Morphology Summary</div>
+                <div style="color:#c8ddf0;font-size:14px;margin-top:4px">3 giá trị được lưu cùng debug output</div>
+            </div>
+            <div style="color:#8a9dc0;font-size:12px;font-family:monospace;display:flex;gap:12px;flex-wrap:wrap">
+                <span>points=${morphology.contour_points ?? "—"}</span>
+                <span>area=${_formatNumber(morphology.area)}</span>
+                <span>perimeter=${_formatNumber(morphology.perimeter)}</span>
+                <span>hull=${_formatNumber(morphology.hull_area)}</span>
+            </div>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
+                <thead>
+                    <tr style="border-bottom:1px solid rgba(126,207,255,0.18)">
+                        <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Chỉ số</th>
+                        <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Giá trị</th>
+                        <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Ý nghĩa</th>
                     </tr>
-                `;
-            }).join("");
-
-            wrap.innerHTML = `
-                <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap">
-                    <div>
-                        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7ecfff;font-weight:700">Morphology Summary</div>
-                        <div style="color:#c8ddf0;font-size:14px;margin-top:4px">3 giá trị được lưu cùng debug output</div>
-                    </div>
-                    <div style="color:#8a9dc0;font-size:12px;font-family:monospace;display:flex;gap:12px;flex-wrap:wrap">
-                        <span>points=${morphology.contour_points ?? "—"}</span>
-                        <span>area=${_formatNumber(morphology.area)}</span>
-                        <span>perimeter=${_formatNumber(morphology.perimeter)}</span>
-                        <span>hull=${_formatNumber(morphology.hull_area)}</span>
-                    </div>
-                </div>
-                <div style="overflow-x:auto">
-                    <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
-                        <thead>
-                            <tr style="border-bottom:1px solid rgba(126,207,255,0.18)">
-                                <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Chỉ số</th>
-                                <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Giá trị</th>
-                                <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Ý nghĩa</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                </div>
-            `;
-
-            return wrap;
-        }
-        ? `<span style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600">⚡ Cached</span>`
-        : `<span style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600">✓ Mới tạo</span>`;
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `;
+        return wrap;
+    }
 
     // Tab navigation
     const tabNav = document.createElement("div");
