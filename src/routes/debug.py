@@ -1,5 +1,6 @@
 # src/routes/debug.py
 import os
+import json
 import tempfile
 import subprocess
 from pathlib import Path
@@ -15,6 +16,7 @@ DEBUG_OUTPUT_DIR.mkdir(exist_ok=True)
 # Nhóm debug theo prefix file thực tế từ các debug module
 DEBUG_GROUPS = [
     ("preprocess", "🔧 Tiền xử lý",       "step1_"),
+    ("morphology", "🧬 Morphology",       "morph_"),
     ("shape",      "📐 Hình dạng (EFD)",   "shape_"),
     ("lbp",        "🔳 LBP",              "lbp_"),
     ("glcm",       "🧩 GLCM",             "glcm_"),
@@ -43,7 +45,8 @@ def debug_image(filename):
                 "status": "done",
                 "cached": True,
                 "filename": safe_name,
-                "groups": build_debug_groups(stem, pngs)
+                "groups": build_debug_groups(stem, pngs),
+                "morphology": load_morphology_summary(out_dir),
             })
 
         # === Chạy debug script ===
@@ -92,7 +95,8 @@ def debug_image(filename):
         "status": "done",
         "cached": False,
         "filename": safe_name,
-        "groups": build_debug_groups(stem, pngs)
+        "groups": build_debug_groups(stem, pngs),
+        "morphology": load_morphology_summary(out_dir),
     })
 
 
@@ -144,6 +148,7 @@ def debug_upload():
             "filename": Path(file.filename).name or "input.jpg",
             "stem": stem,
             "groups": build_debug_groups(stem, pngs),
+            "morphology": load_morphology_summary(out_dir),
         })
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Debug script chạy quá lâu (timeout 180s)"}), 500
@@ -218,3 +223,18 @@ def build_debug_groups(stem: str, pngs: list) -> list:
         })
 
     return result
+
+
+def load_morphology_summary(out_dir: Path) -> dict | None:
+    summary_path = out_dir / "morphology.json"
+    if not summary_path.exists():
+        return None
+
+    try:
+        with open(summary_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        print(f"[DEBUG] Không đọc được morphology summary: {e}")
+    return None
