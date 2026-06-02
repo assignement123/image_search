@@ -238,7 +238,7 @@ function _showImgPopup(src, name) {
 
     const box = document.createElement("div");
     box.style.cssText = [
-        "position:relative","max-width:min(85vw,860px)","max-height:88vh",
+        "position:relative","max-width:min(92vw,1200px)","max-height:94vh",
         "display:flex","flex-direction:column","align-items:center","gap:10px",
     ].join(";");
 
@@ -262,7 +262,7 @@ function _showImgPopup(src, name) {
     img.src = src;
     img.alt = name;
     img.style.cssText = [
-        "max-width:100%","max-height:calc(88vh - 50px)",
+        "max-width:100%","max-height:calc(94vh - 50px)",
         "object-fit:contain","border-radius:10px",
         "box-shadow:0 16px 60px rgba(0,0,0,0.7)",
     ].join(";");
