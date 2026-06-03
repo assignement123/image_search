@@ -97,10 +97,6 @@ function _renderGroups(groups, stem, cached, morphology) {
         return;
     }
 
-    const summary = _renderMorphologySummary(morphology);
-    if (summary) {
-        container.appendChild(summary);
-    }
 
     // Badge cached/fresh
     const badge = cached
@@ -123,6 +119,14 @@ function _renderGroups(groups, stem, cached, morphology) {
         const panel = document.createElement("div");
         panel.className = `debug-panel${gi === 0 ? " active" : ""}`;
         panel.dataset.group = group.id;
+
+        // Nếu là tab Morphology → chèn summary vào đầu panel
+        if (group.id === "morphology") {
+            const summary = _renderMorphologySummary(morphology);
+            if (summary) {
+                panel.appendChild(summary);
+            }
+        }
 
         const grid = document.createElement("div");
         grid.className = "debug-img-grid";
