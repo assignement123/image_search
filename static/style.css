@@ -845,27 +845,45 @@ body > * { position: relative; z-index: 1; }
   text-overflow: ellipsis;
 }
 
-/* Fullscreen khi click ảnh */
+/* Fullscreen khi click ảnh — overlay + card căn giữa */
+.debug-img-fullscreen-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(6px);
+  cursor: zoom-out;
+}
+
 .debug-img-card.debug-img-fullscreen {
   position: fixed;
-  inset: 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) !important;
   z-index: 1100;
   width: auto;
-  height: auto;
+  max-width: min(80vw, 900px);
+  max-height: 82vh;
   border-radius: 14px;
   display: flex;
   flex-direction: column;
-  transform: none !important;
-  box-shadow: 0 20px 80px rgba(0,0,0,0.8);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.9);
+  overflow: hidden;
 }
 .debug-img-card.debug-img-fullscreen .debug-img-wrap {
   flex: 1;
   min-height: unset;
+  max-height: calc(82vh - 44px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .debug-img-card.debug-img-fullscreen .debug-img-wrap img {
   width: auto;
-  height: 100%;
-  max-height: calc(100vh - 120px);
+  height: auto;
+  max-width: 100%;
+  max-height: calc(82vh - 44px);
   object-fit: contain;
   cursor: zoom-out;
 }
