@@ -13,7 +13,7 @@ export async function openDebugModal(filename) {
     _currentDebugMode = "file";
     _currentFilename = filename;
     const modal = document.getElementById("debug-modal");
-    const stem  = filename.replace(/\.[^.]+$/, "");
+    const stem = filename.replace(/\.[^.]+$/, "");
 
     document.getElementById("debug-rerun-btn").style.display = "inline-flex";
 
@@ -25,7 +25,7 @@ export async function openDebugModal(filename) {
         `🔬 Debug: ${filename}`;
 
     try {
-        const res  = await fetch(`/api/debug/${encodeURIComponent(filename)}`);
+        const res = await fetch(`/api/debug/${encodeURIComponent(filename)}`);
         const data = await res.json();
 
         if (!res.ok || data.error) {
@@ -79,8 +79,8 @@ async function rerunDebug() {
 
 function _setDebugState(state, msg = "") {
     document.getElementById("debug-loading").style.display = state === "loading" ? "flex" : "none";
-    document.getElementById("debug-error").style.display   = state === "error"   ? "flex" : "none";
-    document.getElementById("debug-content").style.display = state === "done"    ? "block" : "none";
+    document.getElementById("debug-error").style.display = state === "error" ? "flex" : "none";
+    document.getElementById("debug-content").style.display = state === "done" ? "block" : "none";
 
     if (state === "error") {
         document.getElementById("debug-error-msg").textContent = msg;
