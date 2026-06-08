@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # --- Web & API ---
 flask
 flask-cors
@@ -24,3 +25,31 @@ matplotlib
 # --- Machine Learning / Tìm kiếm (Bỏ comment nếu cần) ---
 # scikit-learn
 # faiss-cpu
+=======
+# --- Web Framework & API ---
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+
+# --- Image Processing & Mathematics ---
+opencv-python-headless==4.9.0.80
+numpy==1.26.3
+scipy==1.12.0
+scikit-image==0.22.0
+pandas==2.2.0
+scikit-learn==1.3.0
+
+# --- AI & Object Detection (YOLOv8) ---
+ultralytics==8.1.0
+torch==2.2.0
+torchvision==0.17.0
+
+# --- Database & Vector Storage ---
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+
+# --- Utilities ---
+python-dotenv==1.0.1
+matplotlib==3.8.2
+
+>>>>>>> origin

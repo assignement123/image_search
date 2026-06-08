@@ -16,6 +16,7 @@ leaves_data/
 .vscode/
 .idea/
 .DS_Store
+<<<<<<< HEAD
 Thumbs.db
 
 debug_outputs/
@@ -24,3 +25,10 @@ debug_outputs/
 /src/search_rework_plan.md
 
 /leaves_data
+=======
+
+.venv/
+__pycache__/
+*.pyc
+data/
+>>>>>>> origin
