@@ -25,4 +25,5 @@ data/
 # Migration / re-extract scripts (chạy tay, không cần commit)
 scripts/reextract_efd.py
 scripts/reextract_vein.py
-
+scripts/migrate_efd.py
+scripts/migrate_vein.py
