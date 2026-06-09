@@ -31,3 +31,4 @@ scripts/reextract_vein.py
 debug_out/
 scripts/migrate_efd.py
 scripts/migrate_vein.py
+app/
