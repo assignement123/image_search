@@ -1,10 +1,12 @@
 // static/js/debug.js
 // ──────────────────────────────────────────────────────────────────────
-// Debug Modal — hiển thị kết quả debug theo 4 nhóm (preprocess/shape/
-//               texture/color/vein) ngay trong app, không redirect trang.
+// Debug Modal — hiển thị kết quả debug theo các nhóm
+//               (preprocess/shape/lbp/glcm/color/vein) ngay trong app,
+//               không redirect trang.
 // ──────────────────────────────────────────────────────────────────────
 
 let _currentFilename = null;
+let _currentDebugMode = "file";
 
 /** Mở modal debug và gọi API */
 export async function openDebugModal(filename) {
@@ -35,6 +37,28 @@ export async function openDebugModal(filename) {
   } catch (e) {
     _setDebugState("error", e.message || "Không thể kết nối server");
   }
+}
+
+/** Mở modal debug từ payload có sẵn trong response search */
+export function openDebugModalFromData(debugData) {
+    _currentDebugMode = "inline";
+    _currentFilename = debugData.filename || null;
+
+    const modal = document.getElementById("debug-modal");
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+
+    document.getElementById("debug-rerun-btn").style.display = "none";
+
+    const title = debugData.filename || "Ảnh input";
+    document.getElementById("debug-modal-title").textContent = `🔬 Debug: ${title}`;
+
+    if (debugData.error) {
+        _setDebugState("error", debugData.error);
+        return;
+    }
+
+    _renderGroups(debugData.groups, debugData.stem || title.replace(/\.[^.]+$/, ""), debugData.cached, debugData.morphology);
 }
 
 /** Đóng modal */
@@ -114,7 +138,7 @@ function _renderGroups(groups, stem, cached) {
       card.innerHTML = `
                 <div class="debug-img-wrap">
                     <img src="${img.url}" alt="${img.name}" loading="lazy"
-                         onclick="this.closest('.debug-img-card').classList.toggle('debug-img-fullscreen')" />
+                         style="cursor:zoom-in" />
                 </div>
                 <div class="debug-img-label">${img.name}</div>
             `;
@@ -142,6 +166,128 @@ function _renderGroups(groups, stem, cached) {
         .classList.add("active");
     });
   });
+}
+
+function _renderMorphologySummary(morphology) {
+    if (!morphology || !Array.isArray(morphology.vector)) return null;
+
+    const wrap = document.createElement("div");
+    wrap.className = "debug-summary-card";
+    wrap.style.cssText = [
+        "margin:0 0 16px",
+        "padding:16px 18px",
+        "border:1px solid rgba(59,130,246,0.25)",
+        "border-radius:16px",
+        "background:linear-gradient(135deg, rgba(16,26,46,0.96), rgba(26,42,70,0.92))",
+        "box-shadow:0 10px 30px rgba(0,0,0,0.18)",
+    ].join(";");
+
+    const rows = morphology.vector.map((value, index) => {
+        const label = morphology.display_labels?.[index] || morphology.labels?.[index] || `Value ${index + 1}`;
+        const meaning = morphology.meanings?.[index] || "";
+        return `
+            <tr>
+                <td style="padding:10px 12px;color:#a8d1ff;font-weight:600">${label}</td>
+                <td style="padding:10px 12px;color:#e6f1ff;font-family:monospace">${_formatNumber(value)}</td>
+                <td style="padding:10px 12px;color:#8a9dc0">${meaning}</td>
+            </tr>
+        `;
+    }).join("");
+
+    wrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap">
+            <div>
+                <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7ecfff;font-weight:700">Morphology Summary</div>
+                <div style="color:#c8ddf0;font-size:14px;margin-top:4px">3 giá trị được lưu cùng debug output</div>
+            </div>
+            <div style="color:#8a9dc0;font-size:12px;font-family:monospace;display:flex;gap:12px;flex-wrap:wrap">
+                <span>points=${morphology.contour_points ?? "—"}</span>
+                <span>area=${_formatNumber(morphology.area)}</span>
+                <span>perimeter=${_formatNumber(morphology.perimeter)}</span>
+                <span>hull=${_formatNumber(morphology.hull_area)}</span>
+            </div>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
+                <thead>
+                    <tr style="border-bottom:1px solid rgba(126,207,255,0.18)">
+                        <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Chỉ số</th>
+                        <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Giá trị</th>
+                        <th style="padding:10px 12px;text-align:left;color:#7ecfff;font-weight:700">Ý nghĩa</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+    `;
+
+    return wrap;
+}
+
+function _formatNumber(val) {
+    if (val === null || val === undefined) return "—";
+    if (typeof val !== "number") return String(val);
+    return Number.isInteger(val) ? val.toString() : val.toFixed(4);
+}
+
+function _showImgPopup(src, name) {
+    // Xoá popup cũ nếu còn
+    const old = document.getElementById("__debug-img-popup");
+    if (old) old.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "__debug-img-popup";
+    overlay.style.cssText = [
+        "position:fixed","inset:0","z-index:9999",
+        "background:rgba(0,0,0,0.85)","backdrop-filter:blur(6px)",
+        "display:flex","align-items:center","justify-content:center",
+        "padding:24px",
+    ].join(";");
+
+    const box = document.createElement("div");
+    box.style.cssText = [
+        "position:relative","max-width:min(92vw,1200px)","max-height:94vh",
+        "display:flex","flex-direction:column","align-items:center","gap:10px",
+    ].join(";");
+
+    // Nút đóng
+    const closeBtn = document.createElement("button");
+    closeBtn.innerHTML = "✕";
+    closeBtn.style.cssText = [
+        "position:absolute","top:-14px","right:-14px",
+        "width:32px","height:32px","border-radius:50%",
+        "border:1px solid rgba(255,255,255,0.25)",
+        "background:rgba(30,30,40,0.92)","color:#fff",
+        "font-size:14px","cursor:pointer",
+        "display:flex","align-items:center","justify-content:center",
+        "z-index:1","transition:background 0.2s",
+    ].join(";");
+    closeBtn.onmouseenter = () => closeBtn.style.background = "rgba(80,80,100,0.95)";
+    closeBtn.onmouseleave = () => closeBtn.style.background = "rgba(30,30,40,0.92)";
+    closeBtn.onclick = () => overlay.remove();
+
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = name;
+    img.style.cssText = [
+        "max-width:100%","max-height:calc(94vh - 50px)",
+        "object-fit:contain","border-radius:10px",
+        "box-shadow:0 16px 60px rgba(0,0,0,0.7)",
+    ].join(";");
+
+    const label = document.createElement("div");
+    label.textContent = name;
+    label.style.cssText = "color:rgba(255,255,255,0.65);font-size:12px;text-align:center;";
+
+    box.appendChild(closeBtn);
+    box.appendChild(img);
+    box.appendChild(label);
+    overlay.appendChild(box);
+
+    // Click ngoài box → đóng
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    document.body.appendChild(overlay);
 }
 
 /** Khởi tạo — gắn event listeners */

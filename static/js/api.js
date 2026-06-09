@@ -4,6 +4,18 @@ export async function searchLeaf(formData) {
     return res.json();
 }
 
+export async function debugSearchLeaf(formData) {
+    const res = await fetch("/api/search/debug", { method: "POST", body: formData });
+    if (!res.ok) throw new Error((await res.json()).error || "Lỗi debug search");
+    return res.json();
+}
+
+export async function debugUploadImage(formData) {
+    const res = await fetch("/api/debug-upload", { method: "POST", body: formData });
+    if (!res.ok) throw new Error((await res.json()).error || "Lỗi debug ảnh input");
+    return res.json();
+}
+
 export async function getSpeciesList() {
     const res = await fetch("/api/species");
     return res.json();

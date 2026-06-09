@@ -845,27 +845,140 @@ body > * { position: relative; z-index: 1; }
   text-overflow: ellipsis;
 }
 
-/* Fullscreen khi click ảnh */
+/* Fullscreen khi click ảnh — overlay + card căn giữa */
+.debug-img-fullscreen-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(6px);
+  cursor: zoom-out;
+}
+
 .debug-img-card.debug-img-fullscreen {
   position: fixed;
-  inset: 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) !important;
   z-index: 1100;
   width: auto;
-  height: auto;
+  max-width: min(80vw, 900px);
+  max-height: 82vh;
   border-radius: 14px;
   display: flex;
   flex-direction: column;
-  transform: none !important;
-  box-shadow: 0 20px 80px rgba(0,0,0,0.8);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.9);
+  overflow: hidden;
 }
 .debug-img-card.debug-img-fullscreen .debug-img-wrap {
   flex: 1;
   min-height: unset;
+  max-height: calc(82vh - 44px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .debug-img-card.debug-img-fullscreen .debug-img-wrap img {
   width: auto;
-  height: 100%;
-  max-height: calc(100vh - 120px);
+  height: auto;
+  max-width: 100%;
+  max-height: calc(82vh - 44px);
   object-fit: contain;
   cursor: zoom-out;
+}
+
+/* ═══ SEARCH DEBUG MODAL ═════════════════════════════════════════════ */
+.search-debug-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 18px 20px 0;
+}
+
+.search-debug-summary-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.search-debug-summary-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.search-debug-summary-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.search-debug-note {
+  padding: 12px 20px 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.search-debug-table-wrap {
+  padding: 16px 20px 20px;
+  overflow: auto;
+}
+
+.search-debug-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.search-debug-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(12,16,28,0.96);
+  color: var(--text-muted);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+
+.search-debug-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  vertical-align: top;
+}
+
+.search-debug-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.search-debug-rank {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.search-debug-file {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-debug-feature {
+  min-width: 90px;
+}
+
+.search-debug-feature-main {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.search-debug-feature-sub {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--text-muted);
 }
