@@ -22,6 +22,7 @@ __pycache__/
 *.pyc
 data/
 debug_outputs/
+debug_out/
 # Migration / re-extract scripts (chạy tay, không cần commit)
 scripts/reextract_efd.py
 scripts/reextract_vein.py
