@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import psycopg2.extras
-from pgvector.psycopg2 import register_vector
 from flask import Blueprint, request, jsonify
 
 from src.db.postgres_repo import connect_db
@@ -28,45 +27,49 @@ def _to_vector(value):
 CASCADED_SQL = """
 WITH
 s1 AS (
-    -- Tầng 1: EFD (hình dạng tổng thể)
-    SELECT id, filename, species,
+    -- Tầng 1: EFD hình dạng, có reflection invariance
+    -- LEAST → lấy distance nhỏ nhất giữa normal và flipped query
+    SELECT filename, species,
            morphology_stats, lbp_hist, glcm_stats, vein_features, color_moments,
-           efd_coeffs <-> %(q_efd)s::vector AS d_efd
+           LEAST(
+               efd_coeffs <=> %(q_efd)s::vector,
+               efd_coeffs <=> %(q_efd_flip)s::vector
+           ) AS d_efd
     FROM   leaf_collection
     ORDER  BY d_efd
     LIMIT  %(top1)s
 ),
 s2 AS (
-    -- Tầng 2: Morphology (hình thái học)
-    SELECT *, morphology_stats <-> %(q_morph)s::vector AS d_morph
+    -- Tầng 2: Morphology — cosine (vector raw: aspect_ratio, circularity, solidity)
+    SELECT *, morphology_stats <=> %(q_morph)s::vector AS d_morph
     FROM   s1
     ORDER  BY d_morph
     LIMIT  %(top2)s
 ),
 s3 AS (
-    -- Tầng 3: LBP (texture cục bộ)
+    -- Tầng 3: LBP — chi-square (metric tối ưu cho probability histogram)
     SELECT *, chi_square_dist(lbp_hist, %(q_lbp)s::vector) AS d_lbp
     FROM   s2
     ORDER  BY d_lbp
     LIMIT  %(top3)s
 ),
 s4 AS (
-    -- Tầng 4: GLCM (texture thống kê)
-    SELECT *, glcm_stats <-> %(q_glcm)s::vector AS d_glcm
+    -- Tầng 4: GLCM texture — cosine trên vector L2-normalized
+    SELECT *, glcm_stats <=> %(q_glcm)s::vector AS d_glcm
     FROM   s3
     ORDER  BY d_glcm
     LIMIT  %(top4)s
 ),
 s5 AS (
-    -- Tầng 5: Vein (gân lá)
-    SELECT *, vein_features <-> %(q_vein)s::vector AS d_vein
+    -- Tầng 5: Vein gân lá — cosine trên vector L2-normalized
+    SELECT *, vein_features <=> %(q_vein)s::vector AS d_vein
     FROM   s4
     ORDER  BY d_vein
     LIMIT  %(top5)s
 ),
 s6 AS (
-    -- Tầng 6: Color moments (màu sắc)
-    SELECT *, color_moments <-> %(q_color)s::vector AS d_color
+    -- Tầng 6: Color moments — cosine trên vector L2-normalized
+    SELECT *, color_moments <=> %(q_color)s::vector AS d_color
     FROM   s5
     ORDER  BY d_color
     LIMIT  %(top6)s
@@ -75,12 +78,7 @@ SELECT
     filename,
     species,
     '/api/image/' || filename AS image_url,
-    d_efd,
-    d_morph,
-    d_lbp,
-    d_glcm,
-    d_vein,
-    d_color
+    d_efd, d_morph, d_lbp, d_glcm, d_vein, d_color
 FROM s6
 ORDER BY d_color
 """
@@ -126,19 +124,19 @@ def search_cascaded():
     q = {k: _to_vector(v) for k, v in feats.items()}
 
     params = dict(
-        q_efd   = q["efd_coeffs"],
-        q_morph = q["morphology_stats"],
-        q_lbp   = q["lbp_hist"],
-        q_glcm  = q["glcm_stats"],
-        q_vein  = q["vein_features"],
-        q_color = q["color_moments"],
+        q_efd      = q["efd_coeffs"],
+        q_efd_flip = q["efd_coeffs_flipped"],   # reflection invariance cho EFD
+        q_morph    = q["morphology_stats"],
+        q_lbp      = q["lbp_hist"],
+        q_glcm     = q["glcm_stats"],
+        q_vein     = q["vein_features"],
+        q_color    = q["color_moments"],
         top1=top1, top2=top2, top3=top3,
         top4=top4, top5=top5, top6=top6,
     )
 
     try:
-        conn = connect_db()
-        register_vector(conn)
+        conn = connect_db()   # register_vector đã có trong connect_db()
         cur  = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(CASCADED_SQL, params)
         rows = cur.fetchall()
@@ -146,8 +144,8 @@ def search_cascaded():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
-        if 'conn' in locals() and conn:
-            conn.close()
+        if 'cur'  in locals(): cur.close()
+        if 'conn' in locals() and conn: conn.close()
 
     results = [
         {

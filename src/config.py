@@ -1,9 +1,9 @@
 import numpy as np
 
 # --- CẤU HÌNH EFD (Hình dáng) ---
-HARMONICS = 20
-N_RESAMPLE = 600
-DIM_EFD = (HARMONICS - 1) * 4  # 76 chiều
+HARMONICS  = 15                      # harmonics 1..15: đủ để capture răng cưa vừa (Prunus, Betula)
+N_RESAMPLE = 600                     # 600 >> 2×15 = Nyquist thỏa mãn tốt
+DIM_EFD    = 1 + (HARMONICS - 1) * 4  # 57 chiều: D₁ (eccentricity) + harmonics 2..15
 
 # --- CẤU HÌNH TEXTURE (LBP & GLCM) ---
 LBP_P = 24
@@ -18,4 +18,4 @@ DIM_GLCM = 20                  # 20 chiều
 # --- KÍCH THƯỚC CHIỀU CÒN LẠI ---
 DIM_MORPHOLOGY = 3
 DIM_COLOR = 9
-DIM_VEIN = 9
+DIM_VEIN = 17   # [density] + [16-bin angle histogram, rotation-invariant]

@@ -1,27 +1,3 @@
-# preprocess.py
-import os
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-FIXED_THRESH = 210
-
-def _p(out_dir: str, filename: str) -> str:
-    return os.path.join(out_dir, filename)
-
-
-def _save(title: str, img: np.ndarray, path: str, cmap: str = 'gray') -> None:
-    fig, ax = plt.subplots(figsize=(5, 5))
-    if img.ndim == 3:
-        ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    else:
-        ax.imshow(img, cmap=cmap)
-    ax.set_title(title, fontsize=10, fontweight='bold', pad=8)
-    ax.axis('off')
-    plt.tight_layout()
-    plt.savefig(path, dpi=110, bbox_inches='tight')
-    plt.close()
-    print(f"    → {os.path.basename(path)}")
-
 import os
 import cv2
 import numpy as np
@@ -138,26 +114,22 @@ def debug_preprocess(
 
     # 04 — MORPH_OPEN
     kernel_open  = np.ones((3, 3), np.uint8)
-    kernel_close = np.ones((7, 7), np.uint8)
+    kernel_close = np.ones((3, 3), np.uint8)   # khớp code thật: 3×3
     opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_open)
     _save("04 — MORPH_OPEN 3×3 (xoá nhiễu, giữ cuống mỏng)", opened,
           _p(out_dir, "step1_04_morph_open.png"))
 
     # 05 — MORPH_CLOSE
     closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel_close)
-    _save("05 — MORPH_CLOSE 7×7 (lấp lỗ hổng)", closed,
+    _save("05 — MORPH_CLOSE 3×3 (lấp lỗ nhỏ, không bridge rãnh lá)", closed,
           _p(out_dir, "step1_05_morph_close.png"))
-
-    # 05b — Sau _fill_holes
-    closed_filled = _fill_holes(closed)
-    _save("05b — Sau fill_holes (lấp lỗ cuống mỏng)",
-          closed_filled, _p(out_dir, "step1_05b_fill_holes.png"))
+    # (step1_05b _fill_holes đã bỏ: 0/1907 ảnh Flavia có lỗ hổng)
 
     # 06 — Contour trên ảnh gốc
     contour_vis = cv2.drawContours(
         img.copy(), [contour.astype(np.int32)], -1, (0, 255, 0), 2)
     _save(
-        f"06 — Contour lớn nhất ({len(contour)} điểm  |  CCW, điểm đầu=x_min)",
+        f"06 — Contour lớn nhất ({len(contour)} điểm)",
         contour_vis,
         _p(out_dir, "step1_06_contour.png"),
     )

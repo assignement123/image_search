@@ -69,51 +69,61 @@ def debug_vein_features(img: np.ndarray, mask: np.ndarray,
         _p(out_dir, "vein_04_hist_clahe.png"),
     )
 
-    # ── Gaussian + mask_inner ────────────────────────────────────────
-    smooth_full = cv2.GaussianBlur(enhanced, (5, 5), 0)
+    # ── Gaussian 9×9 + mask_inner (khớp code thật) ──────────────────
+    smooth_full = cv2.GaussianBlur(enhanced, (9, 9), 2.0)
     smooth      = cv2.bitwise_and(smooth_full, smooth_full, mask=mask_inner)
-    _save("05 — Gaussian blur (trong mask_inner)", smooth,
+    _save("05 — Gaussian blur 9×9 σ=2 (trong mask_inner)", smooth,
           _p(out_dir, "vein_05_smooth.png"))
 
-    # ── Otsu chỉ trên pixels trong mask ─────────────────────────────
-    pixels_in_mask = smooth[mask_inner > 0]
-    otsu_thresh, _ = cv2.threshold(pixels_in_mask, 0, 255,
-                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    low  = float(otsu_thresh) * 0.3
-    high = float(otsu_thresh) * 0.7
-    print(f"  otsu_thresh={otsu_thresh:.1f}  low={low:.1f}  high={high:.1f}")
-
-    # ── Canny ────────────────────────────────────────────────────────
-    canny = cv2.Canny(smooth, low, high)
-    _save(f"06 — Canny (low={low:.0f} / high={high:.0f})", canny,
-          _p(out_dir, "vein_06_canny.png"))
-
-    # ── Apply mask_inner → vein ──────────────────────────────────────
+    # ── Canny ngưỡng cố định (khớp code thật, bỏ Otsu) ─────────────
+    CANNY_LOW, CANNY_HIGH = 15, 40
+    canny    = cv2.Canny(smooth, CANNY_LOW, CANNY_HIGH)
     vein_raw = cv2.bitwise_and(canny, canny, mask=mask_inner)
+    _save(f"06 — Canny fixed (low={CANNY_LOW} / high={CANNY_HIGH})", canny,
+          _p(out_dir, "vein_06_canny.png"))
     _save("07 — Canny cắt mask_inner", vein_raw,
           _p(out_dir, "vein_07_vein_raw.png"))
 
+    # ── Sobel magnitude filter: giữ top 30% (khớp code thật) ────────
+    sx  = cv2.Sobel(smooth, cv2.CV_64F, 1, 0, ksize=3)
+    sy  = cv2.Sobel(smooth, cv2.CV_64F, 0, 1, ksize=3)
+    mag = np.sqrt(sx**2 + sy**2)
+    vein = vein_raw.copy()
+    if (vein > 0).any():
+        mag_threshold = np.percentile(mag[vein > 0], 70)
+        strong_mask   = (mag >= mag_threshold).astype(np.uint8) * 255
+        vein          = cv2.bitwise_and(vein, strong_mask)
+    _save("07b — Sau Sobel magnitude filter (top 30%)", vein,
+          _p(out_dir, "vein_07b_sobel_filter.png"))
+
+    # ── Connected components: loại nét ngắn (khớp code thật) ─────────
+    min_vein_len = max(5, int(min(gray.shape) * 0.005))
+    n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(vein, connectivity=8)
+    clean = np.zeros_like(vein)
+    for lbl in range(1, n_labels):
+        if stats[lbl, cv2.CC_STAT_AREA] >= min_vein_len:
+            clean[labels == lbl] = 255
+    vein = clean
+    _save(f"07c — Sau CC filter (min {min_vein_len}px)", vein,
+          _p(out_dir, "vein_07c_cc_filter.png"))
+
+    # ── Morphological close 2×2 ───────────────────────────────────────
     k2   = np.ones((2, 2), np.uint8)
-    vein = cv2.morphologyEx(vein_raw, cv2.MORPH_CLOSE, k2, iterations=1)
+    vein = cv2.morphologyEx(vein, cv2.MORPH_CLOSE, k2, iterations=1)
     inner_area = float((mask_inner > 0).sum())
     density    = float((vein > 0).sum() / inner_area) if inner_area > 0 else 0.0
-    _save(f"08 — Sau OPEN  density={density:.4f}", vein,
+    _save(f"08 — Vein cuối  density={density:.4f}", vein,
           _p(out_dir, "vein_08_vein_clean.png"))
 
-    # ── Sanity check ─────────────────────────────────────────────────
     if density > 0.5:
-        print(f"  ⚠ density={density:.4f} > 0.5 — quá nhiều nhiễu.")
+        print(f"  ⚠ density={density:.4f} > 0.5 — quá nhiều nhiễu, tăng CANNY_HIGH.")
     elif density < 0.02:
-        print(f"  ⚠ density={density:.4f} < 0.02 — bỏ sót gân, hạ threshold.")
+        print(f"  ⚠ density={density:.4f} < 0.02 — bỏ sót gân, giảm CANNY_LOW.")
 
-    # ── Sobel chỉ để tính angle histogram ───────────────────────────
-    sx = cv2.Sobel(smooth, cv2.CV_64F, 1, 0, ksize=3)
-    sy = cv2.Sobel(smooth, cv2.CV_64F, 0, 1, ksize=3)
-
+    # ── Angle map & histogram (density=False, khớp code thật) ────────
     mask_f    = (mask_inner > 0).astype(np.float64)
     angle_map = np.arctan2(sy * mask_f, sx * mask_f) * 180.0 / np.pi % 180.0
 
-    # ── Angle overlay + histogram ────────────────────────────────────
     angle_vis = (angle_map / 180.0 * 255).astype(np.uint8)
     angle_clr = cv2.applyColorMap(angle_vis, cv2.COLORMAP_HSV)
     vein3     = cv2.cvtColor((vein > 0).astype(np.uint8) * 255, cv2.COLOR_GRAY2BGR)
@@ -126,7 +136,8 @@ def debug_vein_features(img: np.ndarray, mask: np.ndarray,
 
     if (vein > 0).any():
         angles       = angle_map[vein > 0]
-        hist, edges2 = np.histogram(angles, bins=8, range=(0, 180), density=True)
+        hist, edges2 = np.histogram(angles, bins=8, range=(0, 180), density=False)
+        hist         = hist / hist.sum() if hist.sum() > 0 else hist  # probability
         bin_ctr      = (edges2[:-1] + edges2[1:]) / 2
         axes[1].bar(bin_ctr, hist, width=20, color='steelblue',
                     edgecolor='white', alpha=0.85)
@@ -159,5 +170,6 @@ def debug_vein_features(img: np.ndarray, mask: np.ndarray,
           f"ratio = {(vein_raw > 0).sum() / inner_area:.4f}")
     print(f"vein:       pixels > 0 = {(vein > 0).sum():,}  "
           f"ratio = {(vein > 0).sum() / inner_area:.4f}")
-    print(f"density (debug) = {density:.4f}  |  density (vec[0]) = {vec[0]:.4f}")
+    # vec đã L2-normalize nên vec[0] ≠ density thô (vec[0] = density / ||vein_vec||)
+    print(f"density (debug) = {density:.4f}  |  vec[0] (L2-normalized) = {vec[0]:.4f}")
     print(f"  → Tổng: 10 ảnh (vein_00 ÷ vein_09)")

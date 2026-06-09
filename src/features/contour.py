@@ -12,7 +12,7 @@ from src.config import HARMONICS, N_RESAMPLE, DIM_EFD
 def _resample_contour(contour: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
     """
     Resample contour thành n điểm, đều theo độ dài cung (arc-length).
-    endpoint=False — khớp với code gốc leaf_extract.py.
+    endpoint=False — tránh duplicate điểm đầu/cuối.
     """
     contour = np.asarray(contour, np.float64)
     if len(contour) < 4:
@@ -32,6 +32,25 @@ def _resample_contour(contour: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
     return np.stack([fx(t), fy(t)], axis=1)
 
 
+def _normalize_efd_sign(coeffs: np.ndarray) -> np.ndarray:
+    """
+    Fix sign ambiguity của pyefd normalization.
+
+    pyefd chia scale bằng np.abs(A₁), không phải A₁.
+    Khi A₁ < 0 sau bước rotation, kết quả là A₁=-1 và toàn bộ
+    harmonics bị đổi dấu — gây cosine similarity sai cho các lá
+    cùng loài nhưng rơi vào khác "nhánh" normalization.
+
+    Fix: nếu A₁ < 0, flip dấu toàn bộ coefficient array.
+    Sau fix: A₁=+1 luôn, D₁>0 monotonic, harmonics 2..N nhất quán.
+
+    Verified: D₁ monotonically decreasing 1.0→0.09 cho aspect ratio 1:1→15:1.
+    """
+    if coeffs[0, 0] < 0:
+        coeffs = -coeffs
+    return coeffs
+
+
 # ════════════════════════════════════════════════════════════════════
 # EFD — HÌNH DẠNG BIÊN LÁ
 # ════════════════════════════════════════════════════════════════════
@@ -39,8 +58,19 @@ def _resample_contour(contour: np.ndarray, n: int = N_RESAMPLE) -> np.ndarray:
 def extract_efd(contour: np.ndarray) -> np.ndarray:
     """
     Elliptic Fourier Descriptors — hình dạng biên lá.
-    Bất biến với translation và scale.
-    Output: DIM_EFD chiều = (HARMONICS - 1) × 4
+    Bất biến với translation, scale, rotation, starting point.
+
+    Feature vector (DIM_EFD = 1 + (HARMONICS-1)*4 chiều):
+      [D₁  |  h2_a h2_b h2_c h2_d  |  ...  |  h{H}_a h{H}_b h{H}_c h{H}_d]
+        ↑                         ↑
+      eccentricity           harmonics 2..HARMONICS
+
+    Sau pyefd normalize=True và sign fix:
+      A₁ = +1   (cố định — bỏ)
+      B₁ ≈  0   (cố định — bỏ)
+      C₁ ≈  0   (cố định: phase shift làm C₁=0 — bỏ)
+      D₁ > 0    (THAY ĐỔI: = b/a của ellipse cơ bản)
+                  circle=1.0, oval≈0.6, lanceolate≈0.4, bamboo≈0.17
     """
     if contour is None or len(contour) < 4:
         return np.zeros(DIM_EFD, np.float32)
@@ -52,16 +82,28 @@ def extract_efd(contour: np.ndarray) -> np.ndarray:
         return np.zeros(DIM_EFD, np.float32)
 
     coeffs = elliptic_fourier_descriptors(
-        contour, order=HARMONICS + 1, normalize=False)
+        contour, order=HARMONICS, normalize=True)
 
-    # Normalize theo biên độ bậc 1 → bất biến với scale
-    a1, b1, c1, d1 = coeffs[1]
-    amp1 = np.sqrt(a1**2 + b1**2 + c1**2 + d1**2)
-    if amp1 > 1e-10:
-        coeffs /= amp1
+    # Fix sign ambiguity: đảm bảo A₁=+1 và D₁>0 nhất quán
+    coeffs = _normalize_efd_sign(coeffs)
 
-    # Bỏ bậc 0 (DC) và bậc 1 (dùng để normalize) → lấy bậc 2..HARMONICS
-    return coeffs[2:HARMONICS + 1, :].flatten().astype(np.float32)
+    # D₁ = coeffs[0,3]: eccentricity (b/a), phân biệt tròn vs hẹp
+    # harmonics 2..HARMONICS: chi tiết shape (đầu nhọn, răng cưa, bất đối xứng)
+    d1   = coeffs[0, 3:4]           # shape (1,)
+    rest = coeffs[1:, :].flatten()  # shape ((HARMONICS-1)*4,)
+    return np.concatenate([d1, rest]).astype(np.float32)
+
+
+def extract_efd_flipped(contour: np.ndarray) -> np.ndarray:
+    """
+    EFD của contour lật gương (flip trục x) — reflection invariance.
+    Dùng trong search: similarity = max(sim(db, q), sim(db, q_flip))
+    """
+    if contour is None or len(contour) < 4:
+        return np.zeros(DIM_EFD, np.float32)
+    flipped = np.asarray(contour, np.float64).reshape(-1, 2).copy()
+    flipped[:, 0] = -flipped[:, 0]
+    return extract_efd(flipped)
 
 
 # ════════════════════════════════════════════════════════════════════

@@ -57,8 +57,8 @@ def debug_shape(contour: np.ndarray, out_dir: str) -> None:
 
     cx, cy = rs[:, 0], rs[:, 1]
 
-    # 02–06 Tái tạo các bậc
-    for i, n_h in enumerate([1, 3, 6, 12, HARMONICS]):
+    # 02–06 Tái tạo các bậc (tất cả n_h phải ≤ HARMONICS để tránh IndexError)
+    for i, n_h in enumerate([1, 3, 5, 10, HARMONICS]):
         x, y = reconstruct(n_h)
         fig, axes = plt.subplots(1, 2, figsize=(12, 4))
         axes[0].plot(x, y, 'b-', lw=2)
@@ -88,9 +88,9 @@ def debug_shape(contour: np.ndarray, out_dir: str) -> None:
     plt.close()
     print("    → shape_07_amplitudes.png")
 
-    # 08 - So sánh vector DB vs raw
-    efd_vec     = extract_efd(contour)
-    efd_raw_vec = coeffs[1:HARMONICS, :].flatten().astype(np.float32)
+    # 08 - So sánh vector DB (normalize=True) vs raw (normalize=False)
+    efd_vec     = extract_efd(contour)               # production: normalize=True, coeffs[1:]
+    efd_raw_vec = coeffs[1:, :].flatten().astype(np.float32)  # normalize=False, harmonics 2..HARMONICS (56 dims)
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 8))
     axes[0].bar(range(len(efd_raw_vec)), efd_raw_vec,

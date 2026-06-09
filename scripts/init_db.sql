@@ -8,14 +8,14 @@ CREATE TABLE leaf_collection (
     image_path          TEXT NOT NULL,
     species             TEXT,
     
-    efd_coeffs          vector(76) NOT NULL,
+    efd_coeffs          vector(57) NOT NULL,
     morphology_stats    vector(3)  NOT NULL,
     
     lbp_hist            vector(26) NOT NULL,
     glcm_stats          vector(20) NOT NULL,
     
     color_moments       vector(9)  NOT NULL,
-    vein_features       vector(9)  NOT NULL,
+    vein_features       vector(17) NOT NULL,
     
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -25,34 +25,25 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 
-CREATE TABLE IF NOT EXISTS search_feature_gamma (
-    feature_name VARCHAR(50) PRIMARY KEY,
-    gamma        DOUBLE PRECISION NOT NULL,
-    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 INSERT INTO meta (key, value) VALUES
-    ('harmonics',      '20'),
+    ('harmonics',      '15'),
     ('n_resample',     '600'),
     ('glcm_levels',    '64'),
-    ('dim_efd',        '76'),
+    ('dim_efd',        '57'),
     ('dim_morphology', '3'),
     ('dim_lbp',        '26'),
     ('dim_glcm',       '20'),
     ('dim_color',      '9'),
-    ('dim_vein',       '9')
+    ('dim_vein',       '17')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
--- Gamma có thể được cập nhật độc lập cho từng feature.
--- Không lưu weight ở đây để backend vẫn có thể điều chỉnh linh hoạt.
-
-CREATE INDEX idx_efd_hnsw ON leaf_collection USING hnsw (efd_coeffs vector_l2_ops);
-CREATE INDEX idx_morph_hnsw ON leaf_collection USING hnsw (morphology_stats vector_l2_ops);
-CREATE INDEX idx_glcm_hnsw ON leaf_collection USING hnsw (glcm_stats vector_l2_ops);
-CREATE INDEX idx_vein_hnsw ON leaf_collection USING hnsw (vein_features vector_l2_ops);
-
-CREATE INDEX idx_lbp_hnsw ON leaf_collection USING hnsw (lbp_hist vector_l2_ops);
-CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments vector_l2_ops);
+-- Dùng vector_cosine_ops để khớp với operator <=> (cosine distance) trong search.py
+CREATE INDEX idx_efd_hnsw   ON leaf_collection USING hnsw (efd_coeffs       vector_cosine_ops);
+CREATE INDEX idx_morph_hnsw ON leaf_collection USING hnsw (morphology_stats  vector_cosine_ops);
+CREATE INDEX idx_glcm_hnsw  ON leaf_collection USING hnsw (glcm_stats        vector_cosine_ops);
+CREATE INDEX idx_vein_hnsw  ON leaf_collection USING hnsw (vein_features     vector_cosine_ops);
+CREATE INDEX idx_lbp_hnsw   ON leaf_collection USING hnsw (lbp_hist          vector_cosine_ops);
+CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments     vector_cosine_ops);
 
 CREATE OR REPLACE FUNCTION chi_square_dist(vec1 vector, vec2 vector)
 RETURNS float8 AS $$

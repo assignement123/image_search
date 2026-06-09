@@ -16,19 +16,13 @@ leaves_data/
 .vscode/
 .idea/
 .DS_Store
-<<<<<<< HEAD
-Thumbs.db
-
-debug_outputs/
-.env
-
-/src/search_rework_plan.md
-
-/leaves_data
-=======
 
 .venv/
 __pycache__/
 *.pyc
 data/
->>>>>>> origin
+
+# Migration / re-extract scripts (chạy tay, không cần commit)
+scripts/reextract_efd.py
+scripts/reextract_vein.py
+

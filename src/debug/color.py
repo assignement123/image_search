@@ -6,8 +6,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.stats import circmean
 
-from src.debug.utils import save_img
-
 
 def _get_path(out_dir: str, filename: str) -> str:
     return os.path.join(out_dir, filename)
