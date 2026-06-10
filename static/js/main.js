@@ -5,6 +5,7 @@ import { loadSpeciesList } from "./browse.js";
 import { loadStats } from "./stats.js";
 import { initManageTab, loadDbBadge } from "./manage.js";
 import { initDebugModal } from "./debug.js";
+import { initSearchDebugModal } from "./search_debug.js";
 import { initCascadedTab } from "./cascaded.js";
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // → một module lỗi không kéo chết toàn bộ app
   tryInit("lightbox", () => initLightbox());
   tryInit("debugModal", () => initDebugModal());
+  tryInit("searchDebugModal", () => initSearchDebugModal());
   tryInit("searchTab", () => initSearchTab());
   tryInit("cascaded", () => initCascadedTab());
   tryInit("dbBadge", () => loadDbBadge());
