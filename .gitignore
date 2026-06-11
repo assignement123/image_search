@@ -10,6 +10,7 @@ leaf_errors.txt
 
 /*.jpg
 /*.png
+leaves_data/
 
 
 .vscode/
@@ -28,3 +29,4 @@ debug_out/
 scripts/migrate_efd.py
 scripts/migrate_vein.py
 app/
+.env
