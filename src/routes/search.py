@@ -97,7 +97,7 @@ def search():
                     )) +
                     (%s * GREATEST(0, 1 - (lc.morphology_stats <=> q.q_morphology))) +
                     (%s * exp(-chi_square_dist(lc.lbp_hist, q.q_lbp))) +
-                    (%s * GREATEST(0, 1 - (lc.glcm_stats       <=> q.q_glcm))) +
+                    (%s * GREATEST(0, 1 - (lc.glcm_stats <-> q.q_glcm) / 4.472)) +
                     (%s * GREATEST(0, 1 - (lc.color_moments    <=> q.q_color))) +
                     (%s * GREATEST(0, 1 - (lc.vein_features    <=> q.q_vein)))
                 ) / NULLIF((%s + %s + %s + %s + %s + %s), 0) AS similarity
@@ -210,14 +210,14 @@ def search_debug():
                 ) AS s_efd,
                 GREATEST(0, 1 - (lc.morphology_stats <=> q.q_morphology)) AS s_morphology,
                 exp(-chi_square_dist(lc.lbp_hist, q.q_lbp))               AS s_lbp,
-                GREATEST(0, 1 - (lc.glcm_stats    <=> q.q_glcm))          AS s_glcm,
+                GREATEST(0, 1 - (lc.glcm_stats <-> q.q_glcm) / 4.472) AS s_glcm,
                 GREATEST(0, 1 - (lc.color_moments <=> q.q_color))          AS s_color,
                 GREATEST(0, 1 - (lc.vein_features <=> q.q_vein))           AS s_vein,
                 (
                     %s * GREATEST(GREATEST(0,1-(lc.efd_coeffs<=>q.q_efd)),GREATEST(0,1-(lc.efd_coeffs<=>q.q_efd_flip))) +
                     %s * GREATEST(0,1-(lc.morphology_stats<=>q.q_morphology)) +
                     %s * exp(-chi_square_dist(lc.lbp_hist,q.q_lbp)) +
-                    %s * GREATEST(0,1-(lc.glcm_stats<=>q.q_glcm)) +
+                    %s * GREATEST(0, 1 - (lc.glcm_stats <-> q.q_glcm) / 4.472) +
                     %s * GREATEST(0,1-(lc.color_moments<=>q.q_color)) +
                     %s * GREATEST(0,1-(lc.vein_features<=>q.q_vein))
                 ) / NULLIF(%s,0) AS similarity

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
 from src.config import LBP_P, LBP_R, GLCM_DIST, GLCM_ANGLES, GLCM_LEVELS
-import os
+import os, csv
 
 def get_leaf_mask(gray_img: np.ndarray) -> np.ndarray:
     _, mask = cv2.threshold(gray_img, 5, 255, cv2.THRESH_BINARY)
@@ -45,10 +45,40 @@ def extract_glcm(gray_masked: np.ndarray, mask: np.ndarray) -> np.ndarray:
     props = ['contrast', 'homogeneity', 'energy', 'correlation', 'dissimilarity']
     raw_features = np.concatenate([graycoprops(glcm, p).mean(axis=1) for p in props]).astype(np.float32)
     
-    norm = np.linalg.norm(raw_features)
-    if norm > 1e-7:
-        normalized_features = raw_features / norm
-    else:
-        normalized_features = raw_features
+    # ── DEBUG: ghi raw_features ra CSV ──────────────────────────────────────────
+    # CSV_PATH = "glcm_debug.csv"
+
+    # # Tạo header động: contrast_0, contrast_1, ..., homogeneity_0, ...
+    # n_cols = len(raw_features) // len(props)
+    # header = [f"{p}_{i}" for p in props for i in range(n_cols)]
+
+    # write_header = not os.path.exists(CSV_PATH)
+    # with open(CSV_PATH, "a", newline="") as f:
+    #     writer = csv.writer(f)
+    #     if write_header:
+    #         writer.writerow(header)
+    #     writer.writerow([round(float(v), 6) for v in raw_features])
+    # ────────────────────────────────────────────────────────────────────────────
+
+    # norm = np.linalg.norm(raw_features)
+    # if norm > 1e-7:
+    #     normalized_features = raw_features / norm
+    # else:
+    #     normalized_features = raw_features
         
-    return normalized_features
+    # return normalized_features
+
+    CLIP_RANGES = np.array([
+        320.0,
+        1.0,
+        0.18,
+        2.0,
+        14.0,
+    ], dtype=np.float32)
+
+    n = len(raw_features) // len(props)
+    for i in range(n):
+        raw_features[3 * n + i] += 1.0
+
+    normalized = np.clip(raw_features / np.repeat(CLIP_RANGES, n), 0.0, 1.0)
+    return normalized
