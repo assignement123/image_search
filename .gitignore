@@ -8,6 +8,9 @@ leaf_errors.txt
 *debug*.csv
 *.log
 
+/*.jpg
+/*.png
+leaves_data/
 
 .vscode/
 .idea/
@@ -26,6 +29,5 @@ scripts/migrate_efd.py
 scripts/migrate_vein.py
 app/
 .env
-
 
 /leaves_data
