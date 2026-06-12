@@ -9,7 +9,7 @@ CREATE TABLE leaf_collection (
     species             TEXT,
     
     efd_coeffs          vector(57) NOT NULL,
-    morphology_stats    vector(3)  NOT NULL,
+    morphology_stats    vector(4)  NOT NULL,
     
     lbp_hist            vector(26) NOT NULL,
     glcm_stats          vector(20) NOT NULL,
