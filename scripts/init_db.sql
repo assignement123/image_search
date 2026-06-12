@@ -30,7 +30,7 @@ INSERT INTO meta (key, value) VALUES
     ('n_resample',     '600'),
     ('glcm_levels',    '64'),
     ('dim_efd',        '57'),
-    ('dim_morphology', '3'),
+    ('dim_morphology', '4'),
     ('dim_lbp',        '26'),
     ('dim_glcm',       '20'),
     ('dim_color',      '9'),
@@ -39,8 +39,8 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 -- Dùng vector_cosine_ops để khớp với operator <=> (cosine distance) trong search.py
 CREATE INDEX idx_efd_hnsw   ON leaf_collection USING hnsw (efd_coeffs       vector_cosine_ops);
-CREATE INDEX idx_morph_hnsw ON leaf_collection USING hnsw (morphology_stats  vector_cosine_ops);
-CREATE INDEX idx_glcm_hnsw  ON leaf_collection USING hnsw (glcm_stats        vector_cosine_ops);
+CREATE INDEX idx_morph_hnsw ON leaf_collection USING hnsw (morphology_stats vector_l2_ops);
+CREATE INDEX idx_glcm_hnsw  ON leaf_collection USING hnsw (glcm_stats       vector_l2_ops);
 CREATE INDEX idx_vein_hnsw  ON leaf_collection USING hnsw (vein_features     vector_cosine_ops);
 CREATE INDEX idx_lbp_hnsw   ON leaf_collection USING hnsw (lbp_hist          vector_cosine_ops);
 CREATE INDEX idx_color_hnsw ON leaf_collection USING hnsw (color_moments     vector_cosine_ops);

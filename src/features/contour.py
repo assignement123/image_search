@@ -111,17 +111,19 @@ def extract_efd_flipped(contour: np.ndarray) -> np.ndarray:
 # ════════════════════════════════════════════════════════════════════
 
 def extract_morphology(contour: np.ndarray) -> np.ndarray:
-    """
-    Trích xuất 3 đặc trưng hình thái học từ contour.
-    Output: 3 chiều [aspect_ratio, circularity, solidity]
-    """
     contour_i = contour.astype(np.float32)
-
     area      = cv2.contourArea(contour_i)
     perimeter = cv2.arcLength(contour_i, True)
 
-    x, y, w, h  = cv2.boundingRect(contour_i)
-    aspect_ratio = float(w) / h if h > 0 else 0.0
+    # ── Aspect ratio dùng fitEllipse thay boundingRect ──────────
+    # fitEllipse fit theo trục thực của lá, không bị ảnh hưởng góc xoay
+    if len(contour_i) >= 5:
+        (cx, cy), (MA, ma), angle = cv2.fitEllipse(contour_i)
+        # Luôn lấy min/max để aspect_ratio ≤ 1
+        aspect_ratio = float(min(MA, ma)) / max(MA, ma) if max(MA, ma) > 0 else 0.0
+    else:
+        x, y, w, h = cv2.boundingRect(contour_i)
+        aspect_ratio = float(min(w,h)) / max(w,h) if max(w,h) > 0 else 0.0
 
     circularity = (4 * np.pi * area) / (perimeter ** 2) if perimeter > 0 else 0.0
 
@@ -129,4 +131,14 @@ def extract_morphology(contour: np.ndarray) -> np.ndarray:
     hull_area = cv2.contourArea(hull)
     solidity  = float(area) / hull_area if hull_area > 0 else 0.0
 
-    return np.array([aspect_ratio, circularity, solidity], dtype=np.float32)
+    # ── Extent: độ lấp đầy bounding box ─────────────────────────
+    # Phân biệt lá hình tam giác vs elip dù cùng aspect_ratio
+    x, y, w, h = cv2.boundingRect(contour_i)
+    extent = area / (w * h) if (w * h) > 0 else 0.0
+
+    return np.array([
+        aspect_ratio,   # [0,1]: lá tròn→1.0, lá dài→0.2
+        circularity,    # [0,1]: tròn→1.0, răng cưa/nhọn→thấp
+        solidity,       # [0,1]: nguyên→0.99, thùy sâu→0.6
+        extent,         # [0,1]: elip→π/4≈0.78, hình thoi→0.5
+    ], dtype=np.float32)

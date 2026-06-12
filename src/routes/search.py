@@ -95,7 +95,7 @@ def search():
                         GREATEST(0, 1 - (lc.efd_coeffs <=> q.q_efd)),
                         GREATEST(0, 1 - (lc.efd_coeffs <=> q.q_efd_flip))
                     )) +
-                    (%s * GREATEST(0, 1 - (lc.morphology_stats <=> q.q_morphology))) +
+                    (%s * GREATEST(0, 1 - (lc.morphology_stats <-> q.q_morphology) / 2.0)) +
                     (%s * exp(-chi_square_dist(lc.lbp_hist, q.q_lbp))) +
                     (%s * GREATEST(0, 1 - (lc.glcm_stats <-> q.q_glcm) / 4.472)) +
                     (%s * GREATEST(0, 1 - (lc.color_moments    <=> q.q_color))) +
@@ -208,14 +208,14 @@ def search_debug():
                     GREATEST(0, 1 - (lc.efd_coeffs <=> q.q_efd)),
                     GREATEST(0, 1 - (lc.efd_coeffs <=> q.q_efd_flip))
                 ) AS s_efd,
-                GREATEST(0, 1 - (lc.morphology_stats <=> q.q_morphology)) AS s_morphology,
+                GREATEST(0, 1 - (lc.morphology_stats <-> q.q_morphology) / 2.0) AS s_morphology,
                 exp(-chi_square_dist(lc.lbp_hist, q.q_lbp))               AS s_lbp,
                 GREATEST(0, 1 - (lc.glcm_stats <-> q.q_glcm) / 4.472) AS s_glcm,
                 GREATEST(0, 1 - (lc.color_moments <=> q.q_color))          AS s_color,
                 GREATEST(0, 1 - (lc.vein_features <=> q.q_vein))           AS s_vein,
                 (
                     %s * GREATEST(GREATEST(0,1-(lc.efd_coeffs<=>q.q_efd)),GREATEST(0,1-(lc.efd_coeffs<=>q.q_efd_flip))) +
-                    %s * GREATEST(0,1-(lc.morphology_stats<=>q.q_morphology)) +
+                    %s * GREATEST(0, 1 - (lc.morphology_stats <-> q.q_morphology) / 2.0) +
                     %s * exp(-chi_square_dist(lc.lbp_hist,q.q_lbp)) +
                     %s * GREATEST(0, 1 - (lc.glcm_stats <-> q.q_glcm) / 4.472) +
                     %s * GREATEST(0,1-(lc.color_moments<=>q.q_color)) +
