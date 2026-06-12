@@ -30,3 +30,4 @@ scripts/migrate_efd.py
 scripts/migrate_vein.py
 app/
 .env
+/leaves_data
