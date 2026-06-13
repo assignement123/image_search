@@ -1,13 +1,8 @@
 import os
-import cv2
 import glob
 import uuid
 import json
-import psycopg2
-import numpy as np
-from tqdm import tqdm
-from app.core.features.preprocess import preprocess_leaf_image
-from app.core.features.texture import extract_texture_features
+import argparse
 
 # Cấu hình Database PostgreSQL (dựa theo config bạn đang dùng)
 DB_HOST = "localhost"
@@ -16,7 +11,104 @@ DB_NAME = "leaf_db"
 DB_USER = "admin"
 DB_PASS = "admin"
 
+
+def _load_leave_data(data_path: str):
+    import pandas as pd
+
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Không tìm thấy file dataset: {data_path}")
+
+    _, ext = os.path.splitext(data_path.lower())
+    if ext in [".xlsx", ".xls"]:
+        return pd.read_excel(data_path)
+    return pd.read_csv(data_path)
+
+
+def analyze_leave_data(data_path: str = "leave_data.csv"):
+    try:
+        df = _load_leave_data(data_path)
+    except Exception as err:
+        print(f"❌ Không thể đọc dataset '{data_path}': {err}")
+        return {"is_ready": False, "errors": [str(err)]}
+
+    total_rows, total_cols = df.shape
+    missing_ratio = (df.isna().mean() * 100).round(2)
+    duplicated_rows = int(df.duplicated().sum())
+    duplicate_ratio = round((duplicated_rows / total_rows) * 100, 2) if total_rows else 0.0
+
+    all_missing_cols = [col for col, pct in missing_ratio.items() if pct >= 100]
+    high_missing_cols = [col for col, pct in missing_ratio.items() if 30 <= pct < 100]
+    constant_cols = [col for col in df.columns if df[col].nunique(dropna=True) <= 1]
+
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = [col for col in df.columns if col not in numeric_cols]
+
+    usable_cols = [col for col in df.columns if col not in all_missing_cols and col not in constant_cols]
+
+    critical_issues = []
+    warnings = []
+
+    if total_rows < 20:
+        critical_issues.append(f"Số dòng quá ít ({total_rows}) để phân tích thuộc tính ổn định.")
+    if total_cols < 2:
+        critical_issues.append(f"Số cột quá ít ({total_cols}) để phân tích đa thuộc tính.")
+    if len(usable_cols) < 2:
+        critical_issues.append("Số cột có dữ liệu hữu ích < 2.")
+    if all_missing_cols:
+        critical_issues.append(f"Cột trống hoàn toàn: {all_missing_cols}")
+    if not numeric_cols:
+        warnings.append("Không có cột số; phân tích thống kê định lượng sẽ bị hạn chế.")
+    if high_missing_cols:
+        warnings.append(f"Cột thiếu dữ liệu cao (>=30%): {high_missing_cols}")
+    if constant_cols:
+        warnings.append(f"Cột không biến thiên (<=1 giá trị duy nhất): {constant_cols}")
+    if duplicate_ratio > 20:
+        warnings.append(f"Tỷ lệ dòng trùng lặp cao: {duplicate_ratio}%")
+
+    is_ready = len(critical_issues) == 0
+
+    result = {
+        "is_ready": is_ready,
+        "rows": total_rows,
+        "columns": total_cols,
+        "numeric_columns": numeric_cols,
+        "categorical_columns": categorical_cols,
+        "duplicate_rows": duplicated_rows,
+        "duplicate_ratio_percent": duplicate_ratio,
+        "missing_ratio_percent": missing_ratio.to_dict(),
+        "critical_issues": critical_issues,
+        "warnings": warnings,
+    }
+
+    print("\n📊 ĐÁNH GIÁ DATASET LEAVE_DATA")
+    print("-" * 50)
+    print(f"Số dòng: {total_rows}")
+    print(f"Số cột: {total_cols}")
+    print(f"Cột số: {len(numeric_cols)} | Cột phân loại/khác: {len(categorical_cols)}")
+    print(f"Dòng trùng lặp: {duplicated_rows} ({duplicate_ratio}%)")
+
+    if critical_issues:
+        print("\n❌ Dataset CHƯA ổn cho phân tích thuộc tính:")
+        for issue in critical_issues:
+            print(f" - {issue}")
+    else:
+        print("\n✅ Dataset đạt điều kiện tối thiểu để phân tích thuộc tính.")
+
+    if warnings:
+        print("\n⚠️ Khuyến nghị làm sạch thêm:")
+        for warning in warnings:
+            print(f" - {warning}")
+
+    print("\n📌 Tỷ lệ thiếu dữ liệu theo cột:")
+    for col, pct in result["missing_ratio_percent"].items():
+        print(f" - {col}: {pct}%")
+
+    return result
+
+
 def connect_db():
+    import psycopg2
+
     return psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
@@ -26,6 +118,10 @@ def connect_db():
     )
 
 def run_upload():
+    from tqdm import tqdm
+    from app.core.features.preprocess import preprocess_leaf_image
+    from app.core.features.texture import extract_texture_features
+
     DATA_DIR = "data/Leaves/"
     
     if not os.path.exists(DATA_DIR):
@@ -115,6 +211,9 @@ def run_upload():
             conn.close()
 
 def find_similar_leaves(img_path: str, limit: int = 10):
+    from app.core.features.preprocess import preprocess_leaf_image
+    from app.core.features.texture import extract_texture_features
+
     # 1. Tiền xử lý ảnh query
     processed_img = preprocess_leaf_image(img_path)
     if processed_img is None:
@@ -168,4 +267,21 @@ def find_similar_leaves(img_path: str, limit: int = 10):
             conn.close()
 
 if __name__ == "__main__":
-    run_upload()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mode",
+        choices=["upload", "analyze"],
+        default="upload",
+        help="upload: trích xuất + upload ảnh, analyze: đánh giá dataset leave_data",
+    )
+    parser.add_argument(
+        "--data-path",
+        default="leave_data.csv",
+        help="Đường dẫn dataset cho mode analyze (.csv/.xlsx/.xls)",
+    )
+    args = parser.parse_args()
+
+    if args.mode == "analyze":
+        analyze_leave_data(args.data_path)
+    else:
+        run_upload()
