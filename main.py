@@ -3,7 +3,6 @@ import cv2
 import glob
 import uuid
 import json
-from fractions import Fraction
 import psycopg2
 from tqdm import tqdm
 from app.core.features.preprocess import preprocess_leaf_image
@@ -34,7 +33,7 @@ def validate_dataset(image_paths):
         raise ValueError(f"Không đọc được ảnh: {image_paths[0]}")
 
     expected_h, expected_w = first_image.shape[:2]
-    expected_ratio = Fraction(expected_w, expected_h)
+    expected_ratio = f"{expected_w}:{expected_h}"
 
     for img_path in image_paths[1:]:
         img = cv2.imread(img_path)
@@ -44,15 +43,10 @@ def validate_dataset(image_paths):
         h, w = img.shape[:2]
         if (h, w) != (expected_h, expected_w):
             raise ValueError(
-                f"Ảnh không đồng nhất kích thước: {img_path} có {(w, h)} khác {(expected_w, expected_h)}."
+                f"Ảnh không đồng nhất kích thước: {img_path} có {(h, w)} khác {(expected_h, expected_w)}."
             )
 
-        if Fraction(w, h) != expected_ratio:
-            raise ValueError(
-                f"Ảnh không đồng nhất tỉ lệ khung hình: {img_path} có {w}:{h} khác {expected_w}:{expected_h}."
-            )
-
-    return expected_w, expected_h, f"{expected_w}:{expected_h}"
+    return expected_w, expected_h, expected_ratio
 
 def run_upload():
     DATA_DIR = "data/Leaves/"

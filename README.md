@@ -9,7 +9,7 @@ docker-compose up -d
 ## Đối chiếu theo yêu cầu bài toán
 
 ### 1) Dataset ≥ 500 ảnh lá, cùng kích thước và tỉ lệ
-- Mã nguồn kiểm tra dataset ngay trước khi upload: `validate_dataset(...)` trong `/home/runner/work/image_search/image_search/assignement123/image_search/main.py`.
+- Mã nguồn kiểm tra dataset ngay trước khi upload: `validate_dataset(...)` trong `main.py`.
 - Hệ thống sẽ dừng nếu:
   - số lượng ảnh `< 500`,
   - kích thước ảnh không đồng nhất,
@@ -17,7 +17,7 @@ docker-compose up -d
 - Quy ước mỗi ảnh chứa 1 lá cần được đảm bảo từ khâu thu thập dữ liệu.
 
 ### 2) Bộ đặc trưng nhận dạng lá
-- Đặc trưng dùng trong `/home/runner/work/image_search/image_search/assignement123/image_search/app/core/features/texture.py`:
+- Đặc trưng dùng trong `app/core/features/texture.py`:
   - **LBP 24 chiều** (`P=24, R=3`): mô tả vi cấu trúc bề mặt lá, hữu ích để tìm ảnh tương tự.
   - **GLCM 5 chiều** (contrast, homogeneity, energy, correlation, dissimilarity): mô tả quan hệ mức xám để tăng khả năng phân biệt.
 - Tổng vector đặc trưng: **29 chiều**.
