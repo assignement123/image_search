@@ -69,10 +69,10 @@ def extract_glcm(gray_masked: np.ndarray, mask: np.ndarray) -> np.ndarray:
     # return normalized_features
 
     CLIP_RANGES = np.array([
-        320.0,
+        200.0,
         1.0,
         0.18,
-        2.0,
+        2.5,
         14.0,
     ], dtype=np.float32)
 
