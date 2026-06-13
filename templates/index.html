@@ -50,7 +50,10 @@
         <h1 style="font-size:2rem;font-weight:700;color:var(--text-primary);margin:0 0 0.5rem">Leaf Image Retrieval System</h1>
         <p style="color:var(--text-secondary);font-size:1.05rem;margin:0 0 1rem">Hệ thống lưu trữ và truy vấn ảnh lá cây dựa trên nội dung (CBIR)</p>
         <div style="display:inline-block;background:linear-gradient(135deg,#1e3a5f,#2d5a8e);border:1px solid #4a90d9;border-radius:999px;padding:0.4rem 1.2rem;font-size:0.875rem;color:#a8d1ff;font-weight:500">
-          Flavia Leaf Dataset · 1,907 ảnh · 32 loài · 143 chiều đặc trưng
+          Flavia Leaf Dataset ·
+          <span id="ov-total-images">…</span> ảnh ·
+          <span id="ov-total-species">…</span> loài ·
+          <span id="ov-dim-total">…</span> chiều đặc trưng
         </div>
       </div>
 
@@ -73,12 +76,12 @@
           <div style="background:linear-gradient(135deg,#1a2a4a,#243855);border:1px solid #3a5f8a;border-radius:10px;padding:0.75rem 2rem;width:100%;max-width:600px;text-align:center">
             <div style="font-weight:600;color:#7ecfff;margin-bottom:0.5rem">🔬 Trích xuất đặc trưng — 6 nhóm song song</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center">
-              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">EFD (76D)</span>
-              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Morphology (3D)</span>
-              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">LBP (26D)</span>
-              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">GLCM (20D)</span>
-              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Color (9D)</span>
-              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Vein (9D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">EFD (<span id="ov-dim-efd">…</span>D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Morphology (<span id="ov-dim-morphology">…</span>D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">LBP (<span id="ov-dim-lbp">…</span>D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">GLCM (<span id="ov-dim-glcm">…</span>D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Color (<span id="ov-dim-color">…</span>D)</span>
+              <span style="background:#1a3a5a;border:1px solid #2e6090;border-radius:6px;padding:0.25rem 0.6rem;font-size:0.8rem;color:#a8d1ff">Vein (<span id="ov-dim-vein">…</span>D)</span>
             </div>
           </div>
           <div style="color:#4a8fc0;font-size:1.4rem;line-height:1">↓</div>
@@ -114,38 +117,38 @@
               <tr style="border-bottom:1px solid #1a2a3a">
                 <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Hình dáng</td>
                 <td style="padding:0.7rem 1rem;color:#c8ddf0">EFD (Elliptic Fourier Descriptors)</td>
-                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-blue">76D</span></td>
-                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Biên lá — bất biến scale/rotation</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-blue" id="tbl-dim-efd">…D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Biên lá — bất biến scale/rotation (<span id="tbl-harmonics">…</span> harmonics × 4)</td>
               </tr>
               <tr style="border-bottom:1px solid #1a2a3a">
                 <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Hình thái</td>
                 <td style="padding:0.7rem 1rem;color:#c8ddf0">Morphology Stats</td>
-                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-blue">3D</span></td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-blue" id="tbl-dim-morphology">…D</span></td>
                 <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Diện tích, chu vi, tỷ lệ tròn</td>
               </tr>
               <tr style="border-bottom:1px solid #1a2a3a">
                 <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Texture (cục bộ)</td>
                 <td style="padding:0.7rem 1rem;color:#c8ddf0">LBP (P=24, R=3, uniform)</td>
-                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-purple">26D</span></td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-purple" id="tbl-dim-lbp">…D</span></td>
                 <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Pattern vi cấu trúc bề mặt</td>
               </tr>
               <tr style="border-bottom:1px solid #1a2a3a">
                 <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Texture (không gian)</td>
                 <td style="padding:0.7rem 1rem;color:#c8ddf0">GLCM (5 props × 4 dist)</td>
-                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-purple">20D</span></td>
-                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Thống kê đồng xuất hiện pixel</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-purple" id="tbl-dim-glcm">…D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Thống kê đồng xuất hiện pixel (<span id="tbl-glcm-levels">…</span> levels)</td>
               </tr>
               <tr style="border-bottom:1px solid #1a2a3a">
                 <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Màu sắc</td>
                 <td style="padding:0.7rem 1rem;color:#c8ddf0">Color Moments (HSV)</td>
-                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-green">9D</span></td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-green" id="tbl-dim-color">…D</span></td>
                 <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Mean/Std/Skew trên H, S, V</td>
               </tr>
               <tr>
                 <td style="padding:0.7rem 1rem;color:#a8d1ff;font-weight:500">Gân lá</td>
                 <td style="padding:0.7rem 1rem;color:#c8ddf0">Vein Density + Angle Histogram</td>
-                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-orange">9D</span></td>
-                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Mật độ và hướng gân lá</td>
+                <td style="padding:0.7rem 1rem;text-align:center"><span class="badge badge-orange" id="tbl-dim-vein">…D</span></td>
+                <td style="padding:0.7rem 1rem;color:#8a9dc0;font-size:0.85rem">Mật độ (1D) + histogram hướng xoay bất biến</td>
               </tr>
             </tbody>
           </table>
@@ -196,7 +199,7 @@
             <div style="background:linear-gradient(135deg,#2a1a1a,#3a2424);border:1px solid #6a3a3a;border-radius:10px;padding:1rem 1.25rem">
               <div style="font-weight:600;color:#df9e7e;margin-bottom:0.4rem">🔽 Cascaded Filtering</div>
               <p style="color:#b88a7a;font-size:0.875rem;margin:0;line-height:1.5">
-                Lọc dần từ 1907 ảnh → 200 → 100 → 50 → 30 → Top-N.
+                Lọc dần từ <span id="ov-cascade-total">…</span> ảnh → 200 → 100 → 50 → 30 → Top-N.
                 Không cần normalize cross-metric, mỗi stage dùng distance metric riêng.
               </p>
             </div>
