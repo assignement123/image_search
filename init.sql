@@ -9,4 +9,4 @@ CREATE TABLE leaf_metadata_test (
     fused_vector vector(29) 
 );
 
-CREATE INDEX ON leaf_metadata USING hnsw (fused_vector vector_cosine_ops);
+CREATE INDEX ON leaf_metadata_test USING hnsw (fused_vector vector_cosine_ops);
