@@ -3,8 +3,8 @@ import cv2
 import glob
 import uuid
 import json
+from fractions import Fraction
 import psycopg2
-import numpy as np
 from tqdm import tqdm
 from app.core.features.preprocess import preprocess_leaf_image
 from app.core.features.texture import extract_texture_features
@@ -25,6 +25,35 @@ def connect_db():
         password=DB_PASS
     )
 
+def validate_dataset(image_paths):
+    if len(image_paths) < 500:
+        raise ValueError("Dataset phải có ít nhất 500 ảnh lá.")
+
+    first_image = cv2.imread(image_paths[0])
+    if first_image is None:
+        raise ValueError(f"Không đọc được ảnh: {image_paths[0]}")
+
+    expected_h, expected_w = first_image.shape[:2]
+    expected_ratio = Fraction(expected_w, expected_h)
+
+    for img_path in image_paths[1:]:
+        img = cv2.imread(img_path)
+        if img is None:
+            raise ValueError(f"Không đọc được ảnh: {img_path}")
+
+        h, w = img.shape[:2]
+        if (h, w) != (expected_h, expected_w):
+            raise ValueError(
+                f"Ảnh không đồng nhất kích thước: {img_path} có {(w, h)} khác {(expected_w, expected_h)}."
+            )
+
+        if Fraction(w, h) != expected_ratio:
+            raise ValueError(
+                f"Ảnh không đồng nhất tỉ lệ khung hình: {img_path} có {w}:{h} khác {expected_w}:{expected_h}."
+            )
+
+    return expected_w, expected_h, f"{expected_w}:{expected_h}"
+
 def run_upload():
     DATA_DIR = "data/Leaves/"
     
@@ -33,12 +62,19 @@ def run_upload():
         return
 
     # Lấy danh sách toàn bộ ảnh .jpg
-    image_paths = glob.glob(os.path.join(DATA_DIR, "*.jpg"))
+    image_paths = sorted(glob.glob(os.path.join(DATA_DIR, "*.jpg")))
     if not image_paths:
         print(f"❌ Không tìm thấy ảnh nào trong {DATA_DIR}")
         return
+    
+    try:
+        expected_w, expected_h, expected_ratio = validate_dataset(image_paths)
+    except ValueError as e:
+        print(f"❌ Dataset không hợp lệ: {e}")
+        return
 
     print(f"🚀 Bắt đầu trích xuất và upload {len(image_paths)} ảnh vào Database...")
+    print(f"📐 Bộ dữ liệu hợp lệ: {expected_w}x{expected_h}, tỉ lệ {expected_ratio}")
     print("-" * 50)
 
     try:
@@ -71,7 +107,11 @@ def run_upload():
                 file_name = os.path.basename(img_path)
                 
                 # Vì tập data đang không có nhãn loài, tạm để Unknown
-                features_meta = json.dumps({"source": "extract_texture_features", "dimension": len(vector_list)})
+                features_meta = json.dumps({
+                    "source": "extract_texture_features",
+                    "dimension": len(vector_list),
+                    "feature_groups": ["lbp_histogram_24", "glcm_stats_5"]
+                })
 
                 # 5. Lưu vào Table leaf_metadata_test (dựa trên init.sql)
                 cursor.execute("""
@@ -114,7 +154,7 @@ def run_upload():
         if 'conn' in locals():
             conn.close()
 
-def find_similar_leaves(img_path: str, limit: int = 10):
+def find_similar_leaves(img_path: str):
     # 1. Tiền xử lý ảnh query
     processed_img = preprocess_leaf_image(img_path)
     if processed_img is None:
@@ -128,7 +168,6 @@ def find_similar_leaves(img_path: str, limit: int = 10):
         return []
         
     vector_list = vector.tolist()
-
     try:
         conn = connect_db()
         cursor = conn.cursor()
@@ -139,10 +178,10 @@ def find_similar_leaves(img_path: str, limit: int = 10):
             SELECT id, species_name, scientific_name, image_path, 
                    1 - (fused_vector <=> %s::vector) AS similarity 
             FROM leaf_metadata_test 
-            ORDER BY fused_vector <=> %s::vector 
-            LIMIT %s
+            ORDER BY similarity DESC
+            LIMIT 5
         """
-        cursor.execute(query, (vector_list, vector_list, limit))
+        cursor.execute(query, (vector_list,))
         
         similar_leaves = cursor.fetchall()
         

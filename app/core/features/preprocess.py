@@ -67,20 +67,3 @@ def preprocess_leaf_image(image_path, target_size=512):
     enhanced_img = clahe.apply(gray_final)
     
     return enhanced_img
-
-# Test thử
-result = preprocess_leaf_image('data/Leaves/1123.jpg')
-if result is not None:
-    cv2.imwrite('leaf1123.jpg', result)
-
-result1 = preprocess_leaf_image('data/Leaves/1002.jpg')
-if result1 is not None:
-    cv2.imwrite('leaf1002.jpg', result1)
-
-result2 = preprocess_leaf_image('data/Leaves/1076.jpg')
-if result2 is not None:
-    cv2.imwrite('leaf1076.jpg', result2)
-
-result3 = preprocess_leaf_image('data/Leaves/1421.jpg')
-if result3 is not None:
-    cv2.imwrite('leaf1421.jpg', result3)

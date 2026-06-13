@@ -1,10 +1,13 @@
 import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics.pairwise import cosine_similarity
 
 def extract_texture_features(image):
+    """
+    Trích xuất vector 29 chiều:
+    - 24 chiều LBP (mô tả vi cấu trúc bề mặt lá để tìm lá tương tự)
+    - 5 chiều GLCM (mức độ tương phản/đồng nhất/năng lượng/tương quan/dissimilarity để phân biệt loài)
+    """
     if image is None:
         return None
     
@@ -35,38 +38,3 @@ def extract_texture_features(image):
     ])
 
     return np.hstack([lbp_hist_cleaned, glcm_features])
-
-# --- QUY TRÌNH SO SÁNH 3 ẢNH ---
-
-paths = ['data/Leaves/1006.jpg', 'data/Leaves/1123.jpg', 'data/Leaves/1007.jpg']
-raw_features = []
-
-for path in paths:
-    # Bỏ comment dòng dưới nếu bạn đã có file ảnh thật
-    img = cv2.imread(path) 
-    feat = extract_texture_features(img)
-    raw_features.append(feat)
-    pass
-
-# Giả lập dữ liệu thô của 3 ảnh (mỗi ảnh 29 đặc trưng) để chạy demo
-# raw_features = np.random.rand(3, 29) 
-
-# 1. Chuẩn hóa đồng bộ cho cả 3 ảnh
-scaler = MinMaxScaler()
-normalized_features = scaler.fit_transform(raw_features)
-
-# 2. Tính ma trận tương đồng (Cosine Similarity)
-# Kết quả là ma trận 3x3 thể hiện độ giống nhau giữa từng cặp
-sim_matrix = cosine_similarity(normalized_features)
-
-print("--- KẾT QUẢ SO SÁNH TRỰC TIẾP ---")
-print(f"1. Độ giống nhau giữa Ảnh 1 và Ảnh 2: {sim_matrix[0][1]*100:.2f}%")
-print(f"2. Độ giống nhau giữa Ảnh 1 và Ảnh 3: {sim_matrix[0][2]*100:.2f}%")
-print(f"3. Độ giống nhau giữa Ảnh 2 và Ảnh 3: {sim_matrix[1][2]*100:.2f}%")
-
-# Tìm cặp giống nhau nhất (không tính đường chéo chính)
-mask = np.eye(3, dtype=bool)
-sim_matrix_no_diag = np.where(mask, 0, sim_matrix)
-idx = np.unravel_index(sim_matrix_no_diag.argmax(), sim_matrix_no_diag.shape)
-
-print(f"\n=> Cặp ảnh giống nhau nhất là: {paths[idx[0]]} và {paths[idx[1]]} ({sim_matrix[idx]*100:.2f}%)")
