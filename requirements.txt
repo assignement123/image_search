@@ -1,0 +1,6 @@
+pyefd
+scikit-image
+scipy
+tqdm
+opencv-python
+psycopg2-binary
