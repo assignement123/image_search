@@ -14,24 +14,24 @@ services:
       - leaf_db_data:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql 
 
-  app:
-    build: .
-    container_name: leaf_app
-    restart: always
-    ports:
-      - "5001:5001"
-    volumes:
-      - .:/app
-      - ./leaves_data:/app/leaves_data
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: leaf_db
-      DB_USER: admin
-      DB_PASS: admin
-      DATA_DIR: ./leaves_data
-    depends_on:
-      - db
+  # app:
+  #   build: .
+  #   container_name: leaf_app
+  #   restart: always
+  #   ports:
+  #     - "5001:5001"
+  #   volumes:
+  #     - .:/app
+  #     - ./leaves_data:/app/leaves_data
+  #   environment:
+  #     DB_HOST: db
+  #     DB_PORT: 5432
+  #     DB_NAME: leaf_db
+  #     DB_USER: admin
+  #     DB_PASS: admin
+  #     DATA_DIR: ./leaves_data
+  #   depends_on:
+  #     - db
 
 volumes:
   leaf_db_data:

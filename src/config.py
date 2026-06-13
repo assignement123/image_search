@@ -16,6 +16,6 @@ GLCM_ANGLES = [0, np.pi/4, np.pi/2, 3*np.pi/4]
 DIM_GLCM = 20                  # 20 chiều
 
 # --- KÍCH THƯỚC CHIỀU CÒN LẠI ---
-DIM_MORPHOLOGY = 3
+DIM_MORPHOLOGY = 4
 DIM_COLOR = 9
 DIM_VEIN = 17   # [density] + [16-bin angle histogram, rotation-invariant]
