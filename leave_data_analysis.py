@@ -12,6 +12,10 @@ DEFAULT_DATASET_CANDIDATES = (
     "leave_data.csv",
     "data/leave_data.json",
     "leave_data.json",
+    "data/leaf_data.csv",
+    "leaf_data.csv",
+    "data/leaf_data.json",
+    "leaf_data.json",
 )
 
 
@@ -51,7 +55,7 @@ def load_leave_data(path=None):
     dataset_path = _resolve_dataset_path(path)
     if dataset_path is None:
         raise FileNotFoundError(
-            "Không tìm thấy dataset leave_data. Hãy truyền --path hoặc đặt file ở data/leave_data.csv."
+            "Không tìm thấy dataset leave_data/leaf_data. Hãy truyền --path hoặc đặt file ở data/leave_data.csv."
         )
 
     ext = os.path.splitext(dataset_path)[1].lower()
@@ -65,8 +69,11 @@ def load_leave_data(path=None):
     if ext == ".json":
         with open(dataset_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
-        if isinstance(payload, dict) and "leave_data" in payload:
-            payload = payload["leave_data"]
+        if isinstance(payload, dict):
+            if "leave_data" in payload:
+                payload = payload["leave_data"]
+            elif "leaf_data" in payload:
+                payload = payload["leaf_data"]
         if not isinstance(payload, list):
             raise ValueError("JSON dataset phải là list các object hoặc chứa key leave_data.")
         rows = [row for row in payload if isinstance(row, dict)]
@@ -143,7 +150,10 @@ def analyze_leave_data(rows, columns):
     if not recommendations:
         recommendations.append("Dataset đang ở trạng thái tốt để phân tích thuộc tính.")
 
-    is_ready = total_rows > 0 and total_columns > 0 and not high_missing_columns and not constant_columns and duplicate_ratio <= 0.1
+    has_rows = total_rows > 0
+    has_columns = total_columns > 0
+    has_quality_issues = bool(high_missing_columns or constant_columns or duplicate_ratio > 0.1)
+    is_ready = has_rows and has_columns and not has_quality_issues
 
     return {
         "is_ready_for_attribute_analysis": is_ready,
@@ -183,8 +193,8 @@ def build_text_report(analysis, dataset_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Đánh giá dataset leave_data cho phân tích thuộc tính.")
-    parser.add_argument("--path", type=str, default=None, help="Đường dẫn file dataset leave_data (.csv hoặc .json)")
+    parser = argparse.ArgumentParser(description="Đánh giá dataset leave_data/leaf_data cho phân tích thuộc tính.")
+    parser.add_argument("--path", type=str, default=None, help="Đường dẫn file dataset leave_data/leaf_data (.csv hoặc .json)")
     parser.add_argument("--json", action="store_true", help="In báo cáo dưới dạng JSON")
     args = parser.parse_args()
 
