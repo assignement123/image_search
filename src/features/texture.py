@@ -1,3 +1,4 @@
+from PIL import features
 import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern, graycomatrix, graycoprops
@@ -68,17 +69,22 @@ def extract_glcm(gray_masked: np.ndarray, mask: np.ndarray) -> np.ndarray:
         
     # return normalized_features
 
-    CLIP_RANGES = np.array([
-        200.0,
-        1.0,
-        0.18,
-        2.5,
-        14.0,
+    CLIP_RANGES_FULL = np.array([
+    # contrast d1,   d3,    d5,    d7
+      69.0,  170.0, 230.0, 245.0,
+    # homogeneity d1,  d3,   d5,   d7
+      0.64,   0.48,  0.41,  0.38,
+    # energy d1,   d3,   d5,   d7
+      0.135,  0.107, 0.099, 0.095,
+    # correlation d1,  d3,   d5,   d7  (sau +1)
+      1.92,   1.83,  1.77,  1.73,
+    # dissimilarity d1,  d3,   d5,   d7
+      5.6,    9.3,  11.0,  11.6,
     ], dtype=np.float32)
+    
+    features = raw_features.copy()
+    features[12:16] += 1.0
 
-    n = len(raw_features) // len(props)
-    for i in range(n):
-        raw_features[3 * n + i] += 1.0
-
-    normalized = np.clip(raw_features / np.repeat(CLIP_RANGES, n), 0.0, 1.0)
+    # Trong extract_glcm thay np.repeat bằng:
+    normalized = np.clip(features / CLIP_RANGES_FULL, 0.0, 1.0)
     return normalized
